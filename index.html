@@ -1,0 +1,2006 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Kadan - Produção</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+<!-- Firebase (Realtime Database + Authentication) — SDK "compat", sem necessidade de build/bundler -->
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+
+<style>
+  :root{
+    --bg:#EAF0EE;
+    --surface:#FFFFFF;
+    --surface-2:#E1E9E6;
+    --surface-3:#D5E0DC;
+    --ink:#152420;
+    --ink-muted:#5A6B65;
+    --ink-faint:#8B9B95;
+    --border:#CBD8D3;
+    --accent:#E1683F;
+    --accent-ink:#FFFFFF;
+    --accent-soft:#FBE2D6;
+    --teal:#2C6C5E;
+    --teal-soft:#DCEBE6;
+    --good:#2F8F5B;
+    --good-soft:#DCF1E3;
+    --warning:#B87A18;
+    --warning-soft:#FBEACB;
+    --critical:#C4453A;
+    --critical-soft:#F9DEDB;
+    --shadow: 0 1px 2px rgba(21,36,32,.06), 0 8px 24px -12px rgba(21,36,32,.18);
+    --font-display:'Manrope', 'Segoe UI', sans-serif;
+    --font-body:'IBM Plex Sans', 'Segoe UI', sans-serif;
+    --font-mono:'IBM Plex Mono', 'Courier New', monospace;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#101815;
+      --surface:#182420;
+      --surface-2:#213029;
+      --surface-3:#2A3B33;
+      --ink:#EAF2EE;
+      --ink-muted:#9FB3AB;
+      --ink-faint:#6E8580;
+      --border:#31453C;
+      --accent:#F0895F;
+      --accent-ink:#17110D;
+      --accent-soft:#3A2A21;
+      --teal:#5CAE9B;
+      --teal-soft:#1C332E;
+      --good:#5FC488;
+      --good-soft:#1B3327;
+      --warning:#E4AC4F;
+      --warning-soft:#3A2E15;
+      --critical:#E37D73;
+      --critical-soft:#3B211E;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px -12px rgba(0,0,0,.5);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#101815;
+    --surface:#182420;
+    --surface-2:#213029;
+    --surface-3:#2A3B33;
+    --ink:#EAF2EE;
+    --ink-muted:#9FB3AB;
+    --ink-faint:#6E8580;
+    --border:#31453C;
+    --accent:#F0895F;
+    --accent-ink:#17110D;
+    --accent-soft:#3A2A21;
+    --teal:#5CAE9B;
+    --teal-soft:#1C332E;
+    --good:#5FC488;
+    --good-soft:#1B3327;
+    --warning:#E4AC4F;
+    --warning-soft:#3A2E15;
+    --critical:#E37D73;
+    --critical-soft:#3B211E;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px -12px rgba(0,0,0,.5);
+  }
+
+  *{box-sizing:border-box;}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:var(--font-body);
+    padding-inline:16px;
+    padding-block:20px 40px;
+    display:flex;
+    justify-content:center;
+  }
+  .app{width:100%;max-width:1180px;display:flex;flex-direction:column;gap:18px;}
+  .app[hidden]{display:none;}
+  ::selection{background:var(--accent-soft);color:var(--ink);}
+  h1,h2,h3{font-family:var(--font-display);font-weight:800;letter-spacing:-0.01em;text-wrap:balance;margin:0;}
+  .num{font-family:var(--font-mono);font-variant-numeric:tabular-nums;}
+
+  /* ---- Header ---- */
+  header.top{
+    display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;
+    padding-block:4px;
+  }
+  .brand{display:flex;align-items:center;gap:12px;}
+  .brand-mark{
+    width:44px;height:44px;border-radius:12px;background:linear-gradient(155deg,var(--accent),#c94f2b);
+    display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;box-shadow:var(--shadow);
+  }
+  .brand h1{font-size:1.3rem;}
+  .brand p{margin:2px 0 0;font-size:.8rem;color:var(--ink-muted);}
+  .today-pill{
+    font-family:var(--font-mono);font-size:.78rem;color:var(--ink-muted);
+    background:var(--surface);border:1px solid var(--border);border-radius:999px;padding:7px 14px;
+    white-space:nowrap;
+  }
+  .top-right{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+
+  /* ---- Login ---- */
+  .login-screen{
+    position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;
+    padding:20px;z-index:80;
+  }
+  .login-screen[hidden]{display:none;}
+  .login-card{
+    background:var(--surface);border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow);
+    padding:28px 24px;width:100%;max-width:360px;display:flex;flex-direction:column;gap:14px;
+  }
+  .login-brand{display:flex;align-items:center;gap:12px;margin-bottom:2px;}
+  .login-brand h1{font-size:1.2rem;}
+  .login-sub{margin:0 0 4px;font-size:.85rem;color:var(--ink-muted);}
+  .login-error{
+    background:var(--critical-soft);color:var(--critical);border-radius:8px;padding:9px 12px;font-size:.8rem;line-height:1.4;
+  }
+  .login-error[hidden]{display:none;}
+
+  .firebase-warning{
+    background:var(--warning-soft);color:var(--warning);border:1px solid var(--warning);
+    border-radius:10px;padding:10px 14px;font-size:.82rem;line-height:1.5;margin-bottom:14px;
+  }
+  .firebase-warning code{font-family:var(--font-mono);background:rgba(0,0,0,.08);padding:1px 5px;border-radius:4px;}
+
+  /* ---- Tabs ---- */
+  .tabs{display:flex;gap:8px;background:var(--surface-2);padding:5px;border-radius:14px;flex-wrap:wrap;}
+  .tab-btn{
+    flex:1;display:flex;align-items:center;justify-content:center;gap:8px;min-width:140px;
+    border:none;background:transparent;color:var(--ink-muted);font-family:var(--font-display);
+    font-weight:700;font-size:.92rem;padding:13px 10px;border-radius:10px;cursor:pointer;
+    transition:background .15s ease, color .15s ease;
+  }
+  @media (max-width:640px){.tab-btn{font-size:.8rem;padding:11px 8px;min-width:0;}}
+  .tab-btn .n{
+    font-family:var(--font-mono);font-size:.7rem;background:var(--surface-3);color:var(--ink-muted);
+    border-radius:999px;padding:1px 7px;
+  }
+  .tab-btn.active{background:var(--surface);color:var(--ink);box-shadow:var(--shadow);}
+  .tab-btn.active .n{background:var(--accent);color:var(--accent-ink);}
+  .tab-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+
+  /* ---- Layout ---- */
+  .view{display:flex;flex-direction:column;gap:16px;}
+  .cols{display:grid;grid-template-columns:1.15fr .85fr;gap:16px;align-items:start;}
+  @media (max-width:820px){.cols{grid-template-columns:1fr;}}
+
+  .card{
+    background:var(--surface);border:1px solid var(--border);border-radius:16px;
+    padding:18px 18px 20px;box-shadow:var(--shadow);
+  }
+  .card-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:14px;flex-wrap:wrap;}
+  .card-head h2{font-size:1.02rem;}
+  .card-head .hint{font-size:.78rem;color:var(--ink-faint);}
+  .eyebrow{
+    font-family:var(--font-mono);font-size:.7rem;letter-spacing:.06em;text-transform:uppercase;
+    color:var(--teal);font-weight:600;margin-bottom:4px;display:block;
+  }
+
+  /* ---- Form ---- */
+  .fieldset{border:none;padding:0;margin:0 0 16px;}
+  .fieldset:last-child{margin-bottom:0;}
+  legend{
+    font-family:var(--font-display);font-weight:700;font-size:.82rem;color:var(--ink);
+    padding:0 0 8px;width:100%;border-bottom:1px solid var(--border);margin-bottom:10px;
+  }
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
+  @media (max-width:560px){.grid3{grid-template-columns:1fr 1fr;}}
+  .grid-produced{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;}
+  @media (max-width:900px){.grid-produced{grid-template-columns:repeat(3,1fr);}}
+  @media (max-width:560px){.grid-produced{grid-template-columns:1fr 1fr;}}
+  .readout{
+    background:var(--surface-3);border:1px dashed var(--border);border-radius:10px;
+    padding:12px 12px;min-height:48px;display:flex;align-items:center;justify-content:space-between;
+  }
+  .readout .val{font-family:var(--font-mono);font-size:.98rem;font-weight:700;}
+  .readout .u{font-size:.72rem;color:var(--ink-faint);font-family:var(--font-mono);}
+  label.field{display:flex;flex-direction:column;gap:5px;}
+  label.field span{font-size:.76rem;color:var(--ink-muted);font-weight:600;}
+  input[type=text], input[type=date], input[type=number]{
+    font-family:var(--font-mono);font-size:.98rem;color:var(--ink);background:var(--surface-2);
+    border:1px solid var(--border);border-radius:10px;padding:12px 12px;min-height:48px;width:100%;
+  }
+  input:focus-visible{outline:2px solid var(--accent);outline-offset:1px;}
+  input::placeholder{color:var(--ink-faint);font-family:var(--font-body);}
+  .unit-wrap{position:relative;}
+  .unit-wrap input{padding-right:34px;}
+  .unit-wrap .unit{position:absolute;right:12px;top:50%;transform:translateY(-50%);font-size:.75rem;color:var(--ink-faint);font-family:var(--font-mono);}
+
+  .btn{
+    font-family:var(--font-display);font-weight:700;font-size:.9rem;border-radius:10px;
+    border:1px solid transparent;padding:13px 18px;cursor:pointer;min-height:48px;
+    display:inline-flex;align-items:center;justify-content:center;gap:8px;
+    transition:transform .08s ease, filter .15s ease;
+    text-decoration:none;
+  }
+  .btn:active{transform:scale(.98);}
+  .btn-primary{background:var(--accent);color:var(--accent-ink);width:100%;}
+  .btn-primary:hover{filter:brightness(1.05);}
+  .btn-ghost{background:var(--surface-2);color:var(--ink);}
+  .btn-outline{background:transparent;color:var(--ink-muted);border-color:var(--border);}
+  .btn-danger{background:var(--critical-soft);color:var(--critical);}
+  .btn-sm{padding:8px 12px;min-height:36px;font-size:.78rem;border-radius:8px;}
+  .btn-xs{padding:4px 8px;min-height:26px;font-size:.68rem;border-radius:6px;}
+  .form-actions{display:flex;gap:10px;margin-top:4px;}
+
+  /* ---- Summary card ---- */
+  .stat-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;}
+  .stat{background:var(--surface-2);border-radius:12px;padding:12px 14px;}
+  .stat .label{font-size:.72rem;color:var(--ink-muted);font-weight:600;display:block;margin-bottom:4px;}
+  .stat .value{font-family:var(--font-mono);font-size:1.28rem;font-weight:700;}
+  .stat .value .u{font-size:.7rem;color:var(--ink-faint);font-weight:500;margin-left:2px;}
+
+  .meter{display:flex;flex-direction:column;gap:6px;margin-bottom:14px;}
+  .meter .top-row{display:flex;justify-content:space-between;align-items:baseline;font-size:.78rem;}
+  .meter .top-row .lab{color:var(--ink-muted);font-weight:600;}
+  .meter .top-row .pct{font-family:var(--font-mono);font-weight:700;font-size:.95rem;}
+  .meter-track{height:10px;border-radius:999px;background:var(--surface-3);overflow:hidden;}
+  .meter-fill{height:100%;border-radius:999px;background:var(--accent);transition:width .3s ease;}
+  .meter-fill.good{background:var(--good);}
+  .meter-fill.warning{background:var(--warning);}
+  .meter-fill.critical{background:var(--critical);}
+
+  .badge{
+    display:inline-flex;align-items:center;gap:6px;font-size:.74rem;font-weight:700;
+    padding:5px 10px;border-radius:999px;font-family:var(--font-body);
+  }
+  .badge.good{background:var(--good-soft);color:var(--good);}
+  .badge.warning{background:var(--warning-soft);color:var(--warning);}
+  .badge.critical{background:var(--critical-soft);color:var(--critical);}
+  .badge.neutral{background:var(--surface-2);color:var(--ink-muted);}
+  .badge::before{content:'';width:6px;height:6px;border-radius:50%;background:currentColor;}
+
+  .check-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--border);font-size:.85rem;}
+  .check-row:first-of-type{border-top:none;}
+  .check-row .k{color:var(--ink-muted);}
+  .check-row .v{font-family:var(--font-mono);font-weight:600;}
+
+  /* ---- History table ---- */
+  .table-wrap{overflow-x:auto;}
+  table{width:100%;border-collapse:collapse;font-size:.85rem;min-width:640px;}
+  th{
+    text-align:left;font-family:var(--font-display);font-size:.7rem;text-transform:uppercase;
+    letter-spacing:.04em;color:var(--ink-muted);padding:8px 10px;border-bottom:1px solid var(--border);
+    white-space:nowrap;
+  }
+  td{padding:10px 10px;border-bottom:1px solid var(--border);vertical-align:middle;white-space:nowrap;}
+  tbody tr:hover{background:var(--surface-2);}
+
+  /* ---- Tabela compacta (poucas colunas, sempre cabe na tela do celular sem scroll) ---- */
+  table.table-compact{min-width:0;font-size:.78rem;}
+  table.table-compact th{padding:6px 6px;font-size:.62rem;}
+  table.table-compact td{padding:6px 6px;}
+  .empty-row td{color:var(--ink-faint);text-align:center;padding:26px 10px;white-space:normal;}
+  .row-actions{display:flex;gap:6px;}
+
+  /* ---- Módulo 2 ---- */
+  .import-zone{
+    border:1.5px dashed var(--border);border-radius:14px;padding:22px;text-align:center;
+    background:var(--surface-2);position:relative;
+  }
+  .import-zone input[type=file]{
+    position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;
+  }
+  .import-zone .icon{font-size:1.6rem;margin-bottom:6px;}
+  .import-zone p{margin:0;font-size:.85rem;color:var(--ink-muted);}
+  .import-zone strong{color:var(--ink);}
+
+  .pedido-select-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px;}
+  select{
+    font-family:var(--font-body);font-size:.85rem;background:var(--surface-2);color:var(--ink);
+    border:1px solid var(--border);border-radius:10px;padding:11px 12px;min-height:44px;flex:1;min-width:200px;
+  }
+
+  .kpi-row{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px;}
+  @media (max-width:560px){.kpi-row{grid-template-columns:1fr;}}
+  .kpi{background:var(--teal-soft);border-radius:12px;padding:12px 14px;}
+  .kpi .label{font-size:.72rem;color:var(--teal);font-weight:700;display:block;margin-bottom:4px;}
+  .kpi .value{font-family:var(--font-mono);font-size:1.4rem;font-weight:700;color:var(--ink);}
+
+  /* ---- KPIs compactos (Pedido de produção): sempre 3 por linha, mesmo no celular ---- */
+  .kpi-row-compact{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:8px;}
+  .kpi-compact{background:var(--teal-soft);border-radius:9px;padding:6px 5px;text-align:center;overflow:hidden;}
+  .kpi-compact .label{
+    font-size:.56rem;color:var(--teal);font-weight:700;display:block;margin-bottom:2px;
+    line-height:1.15;text-transform:uppercase;letter-spacing:.01em;
+  }
+  .kpi-compact .value{font-family:var(--font-mono);font-size:.92rem;font-weight:700;color:var(--ink);white-space:nowrap;}
+
+  /* ---- Acompanhamento por categoria (dentro do pedido) ---- */
+  .cat-progress-panel{background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:14px;}
+  .cat-progress-title{
+    font-family:var(--font-display);font-weight:700;font-size:.68rem;text-transform:uppercase;
+    letter-spacing:.04em;color:var(--ink-muted);margin-bottom:8px;
+  }
+  .cat-progress-row{display:flex;align-items:center;gap:8px;padding:3px 0;}
+  .cat-progress-name{
+    flex:0 0 auto;font-size:.74rem;font-weight:600;max-width:38%;overflow:hidden;
+    text-overflow:ellipsis;white-space:nowrap;
+  }
+  .cat-progress-bar{flex:1;height:6px;background:var(--border);border-radius:999px;overflow:hidden;}
+  .cat-progress-fill{height:100%;background:var(--teal);border-radius:999px;}
+  .cat-progress-fill.good{background:var(--good);}
+  .cat-progress-pct{flex:0 0 auto;font-family:var(--font-mono);font-weight:700;font-size:.74rem;min-width:38px;text-align:right;}
+  .cat-progress-qty{flex:0 0 auto;font-family:var(--font-mono);font-size:.68rem;color:var(--ink-muted);min-width:56px;text-align:right;}
+
+  /* ---- Acompanhamento: cartões de pedidos do dia ---- */
+  .acomp-pedido-card{border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:12px;}
+  .acomp-pedido-card:last-child{margin-bottom:0;}
+  .acomp-pedido-toggle{
+    width:100%;display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:none;border:none;
+    padding:0;margin:0;cursor:pointer;text-align:left;font:inherit;color:inherit;
+  }
+  .acomp-pedido-toggle .chevron{font-size:.65rem;transition:transform .15s ease;flex-shrink:0;color:var(--ink-muted);}
+  .acomp-pedido-toggle[aria-expanded="false"] .chevron{transform:rotate(-90deg);}
+  .acomp-pedido-toggle strong{font-family:var(--font-display);font-size:.92rem;}
+  .acomp-pedido-toggle .badge{margin-left:auto;}
+
+  /* ---- Produção por funcionário: cartões com categorias em chips (sempre cabe no celular) ---- */
+  .func-prod-card{border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:10px;}
+  .func-prod-card:last-child{margin-bottom:0;}
+  .func-prod-card.func-prod-total-card{background:var(--teal-soft);border-color:transparent;}
+  .func-prod-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;}
+  .func-prod-head strong{font-family:var(--font-display);font-size:.86rem;}
+  .func-prod-total{font-family:var(--font-mono);font-weight:700;font-size:.8rem;color:var(--teal);}
+
+  /* ---- Pedido (Produção Buffet): acordeão por família ---- */
+  .familia-acc{border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:8px;}
+  .familia-acc:last-child{margin-bottom:0;}
+  .familia-toggle{
+    width:100%;display:flex;align-items:center;gap:7px;background:var(--teal-soft);color:var(--teal);
+    border:none;padding:9px 10px;font-family:var(--font-display);font-weight:700;font-size:.74rem;
+    text-transform:uppercase;letter-spacing:.04em;cursor:pointer;text-align:left;
+  }
+  .familia-toggle .chevron{font-size:.65rem;transition:transform .15s ease;flex-shrink:0;}
+  .familia-toggle[aria-expanded="false"] .chevron{transform:rotate(-90deg);}
+  .familia-toggle .familia-meta{
+    margin-left:auto;font-family:var(--font-mono);font-weight:600;text-transform:none;
+    letter-spacing:0;color:var(--ink-muted);white-space:nowrap;
+  }
+  .familia-items{display:flex;flex-direction:column;}
+  .item-row{padding:8px 10px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:6px;}
+  .item-row:first-child{border-top:none;}
+  .item-row.zero{background:var(--critical-soft);}
+  .item-row.partial{background:var(--warning-soft);}
+  .item-row.complete{background:var(--good-soft);}
+  .item-row-top{display:flex;align-items:center;justify-content:space-between;gap:6px;flex-wrap:wrap;}
+  .item-row-top strong{font-family:var(--font-display);font-size:.84rem;}
+  .item-stats{display:flex;gap:12px;flex-wrap:wrap;}
+  .stat-mini{display:flex;flex-direction:column;gap:0;min-width:50px;}
+  .stat-mini .k{font-size:.6rem;color:var(--ink-muted);text-transform:uppercase;letter-spacing:.03em;}
+  .stat-mini .v{font-family:var(--font-mono);font-weight:700;font-size:.82rem;}
+  .stat-mini .v.positive, .stat-mini .v.good{color:var(--good);}
+  .stat-mini .v.negative, .stat-mini .v.critical{color:var(--critical);}
+  .stat-mini .v.enviado-link{cursor:pointer;text-decoration:underline dotted;text-underline-offset:2px;color:var(--teal);}
+  .stat-mini .v.enviado-link:active{opacity:.7;}
+  .pct-cell{font-family:var(--font-mono);font-weight:700;font-size:.9rem;}
+  .pct-cell.good{color:var(--good);}
+  .pct-cell.critical{color:var(--critical);}
+  .diff-cell{font-family:var(--font-mono);font-weight:700;}
+  .diff-cell.positive{color:var(--good);}
+  .diff-cell.negative{color:var(--critical);}
+
+  /* ---- Modal ---- */
+  .modal-backdrop{
+    position:fixed;inset:0;background:rgba(10,16,14,.55);display:flex;align-items:center;justify-content:center;
+    z-index:60;padding:20px;
+  }
+  .modal-backdrop[hidden]{display:none;}
+  .modal-box{
+    background:var(--surface);border-radius:16px;padding:20px;max-width:420px;width:100%;
+    max-height:min(560px,80vh);overflow-y:auto;box-shadow:var(--shadow);
+  }
+  .modal-box h3{font-size:1.02rem;margin-bottom:4px;}
+  .modal-sub{font-size:.8rem;color:var(--ink-muted);margin:0 0 14px;}
+  .func-grid{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;}
+  .func-pill{
+    font-family:var(--font-body);font-weight:600;font-size:.86rem;background:var(--surface-2);
+    border:1px solid var(--border);color:var(--ink);border-radius:999px;padding:10px 16px;cursor:pointer;min-height:44px;
+  }
+  .func-pill:hover{background:var(--surface-3);}
+  .func-add-row{display:flex;gap:8px;}
+  .func-add-row input{flex:1;}
+  .modal-close-row{display:flex;justify-content:flex-end;margin-top:16px;}
+  .hist-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--border);}
+  .hist-row:first-of-type{border-top:none;}
+  .hist-row .meta{display:flex;flex-direction:column;gap:2px;}
+  .hist-row .meta .t{font-family:var(--font-mono);font-weight:600;font-size:.88rem;}
+  .hist-row .meta .f{font-size:.76rem;color:var(--ink-muted);}
+  .item-entry{display:flex;align-items:center;gap:5px;flex-wrap:nowrap;}
+  .item-entry input{width:52px;flex:none;min-height:26px;padding:4px 6px;font-size:.85rem;}
+  .item-entry button{flex:none;white-space:nowrap;}
+  .item-entry .sendBtn{width:auto;flex:none;padding:3px 10px;min-height:24px;font-size:.66rem;border-radius:5px;}
+
+  .log-table td.qty{font-family:var(--font-mono);font-weight:600;}
+
+  .empty-state{
+    display:flex;flex-direction:column;align-items:center;gap:8px;padding:34px 20px;text-align:center;color:var(--ink-muted);
+  }
+  .empty-state .icon{font-size:1.8rem;}
+  .empty-state p{margin:0;font-size:.88rem;max-width:34ch;}
+
+  /* ---- Toast ---- */
+  #toast{
+    position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(140%);
+    background:var(--ink);color:var(--bg);font-family:var(--font-display);font-weight:700;font-size:.85rem;
+    padding:12px 20px;border-radius:999px;box-shadow:var(--shadow);z-index:50;transition:transform .25s ease;
+    display:flex;align-items:center;gap:8px;white-space:nowrap;
+  }
+  #toast.show{transform:translateX(-50%) translateY(0);}
+  #toast .dot{width:7px;height:7px;border-radius:50%;background:var(--good);flex-shrink:0;}
+
+  @media (prefers-reduced-motion: reduce){
+    *{transition:none !important;}
+  }
+</style>
+</head>
+<body>
+
+<div class="login-screen" id="loginScreen" hidden>
+  <form class="login-card" id="loginForm" autocomplete="on">
+    <div class="login-brand">
+      <div class="brand-mark" aria-hidden="true">🐟</div>
+      <h1>Kadan - Produção</h1>
+    </div>
+    <p class="login-sub">Entre com o login da cozinha para acessar o app.</p>
+    <label class="field">
+      <span>E-mail</span>
+      <input type="email" id="loginEmail" placeholder="cozinha@kadan.com" autocomplete="username" required>
+    </label>
+    <label class="field">
+      <span>Senha</span>
+      <input type="password" id="loginSenha" placeholder="••••••••" autocomplete="current-password" required>
+    </label>
+    <div class="login-error" id="loginError" hidden></div>
+    <button type="submit" class="btn btn-primary" id="loginSubmitBtn">Entrar</button>
+  </form>
+</div>
+
+<div class="app" id="appRoot" hidden>
+
+  <header class="top">
+    <div class="brand">
+      <div class="brand-mark" aria-hidden="true">🐟</div>
+      <div>
+        <h1>Kadan - Produção</h1>
+        <p>Aproveitamento de matéria-prima &amp; envio ao sushibar</p>
+      </div>
+    </div>
+    <div class="top-right">
+      <div class="today-pill" id="todayPill">—</div>
+      <button class="btn btn-outline btn-xs" id="logoutBtn" hidden>Sair</button>
+    </div>
+  </header>
+
+  <div class="firebase-warning" id="firebaseWarning" hidden>
+    ⚠️ Firebase não configurado — edite <code>firebaseConfig</code> no início do <code>&lt;script&gt;</code> deste arquivo com as chaves do seu projeto. Enquanto isso, nada digitado aqui é salvo.
+  </div>
+
+  <nav class="tabs" role="tablist" aria-label="Módulos">
+    <button class="tab-btn active" id="tabBtn1" role="tab" aria-selected="true" aria-controls="view1" data-tab="1">
+      Aproveitamento Salmão <span class="n" id="tabCount1">0</span>
+    </button>
+    <button class="tab-btn" id="tabBtn2" role="tab" aria-selected="false" aria-controls="view2" data-tab="2">
+      Produção Buffet <span class="n" id="tabCount2">0</span>
+    </button>
+    <button class="tab-btn" id="tabBtn3" role="tab" aria-selected="false" aria-controls="view3" data-tab="3">
+      Acompanhamento Produção <span class="n" id="tabCount3">0</span>
+    </button>
+  </nav>
+
+  <!-- ===================== MÓDULO 1 ===================== -->
+  <section class="view" id="view1" role="tabpanel" aria-labelledby="tabBtn1">
+    <div class="cols">
+
+      <div class="card">
+        <div class="card-head">
+          <h2 id="formTitle">Registrar lote de salmão</h2>
+          <span class="hint">pesos em gramas (g) · produzido em unidades (un)</span>
+        </div>
+        <form id="loteForm">
+          <fieldset class="fieldset">
+            <legend>Identificação do lote</legend>
+            <div class="grid2">
+              <label class="field">
+                <span>Lote</span>
+                <input type="text" id="fLote" placeholder="Ex: SAL-160926-01" required>
+              </label>
+              <label class="field">
+                <span>Data de fabricação</span>
+                <input type="date" id="fData" required>
+              </label>
+            </div>
+          </fieldset>
+
+          <fieldset class="fieldset">
+            <legend>Peso inicial e cortes (g)</legend>
+            <div class="grid2" style="margin-bottom:10px;">
+              <label class="field">
+                <span>Peso inicial</span>
+                <div class="unit-wrap"><input type="number" min="0" step="1" inputmode="decimal" id="fPesoInicial" placeholder="0"><span class="unit">g</span></div>
+              </label>
+              <label class="field">
+                <span>Peso líquido <span style="font-weight:400;">(automático)</span></span>
+                <div class="readout"><span class="val num" id="fLiquidoReadout">0</span><span class="u">g</span></div>
+              </label>
+            </div>
+            <div class="grid2">
+              <label class="field">
+                <span>Lombo</span>
+                <div class="unit-wrap"><input type="number" min="0" step="1" inputmode="decimal" id="fLombo" placeholder="0"><span class="unit">g</span></div>
+              </label>
+              <label class="field">
+                <span>Barriga</span>
+                <div class="unit-wrap"><input type="number" min="0" step="1" inputmode="decimal" id="fBarriga" placeholder="0"><span class="unit">g</span></div>
+              </label>
+            </div>
+          </fieldset>
+
+          <fieldset class="fieldset">
+            <legend>Perdas (g)</legend>
+            <div class="grid3">
+              <label class="field">
+                <span>Descarte</span>
+                <div class="unit-wrap"><input type="number" min="0" step="1" inputmode="decimal" id="fDescarte" placeholder="0"><span class="unit">g</span></div>
+              </label>
+              <label class="field">
+                <span>Apara</span>
+                <div class="unit-wrap"><input type="number" min="0" step="1" inputmode="decimal" id="fApara" placeholder="0"><span class="unit">g</span></div>
+              </label>
+              <label class="field">
+                <span>Pele</span>
+                <div class="unit-wrap"><input type="number" min="0" step="1" inputmode="decimal" id="fPele" placeholder="0"><span class="unit">g</span></div>
+              </label>
+            </div>
+          </fieldset>
+
+          <fieldset class="fieldset">
+            <legend>Produzido (unidades)</legend>
+            <div class="grid-produced">
+              <label class="field">
+                <span>Joe</span>
+                <div class="unit-wrap"><input type="number" min="0" step="1" inputmode="numeric" id="fJoe" placeholder="0"><span class="unit">un</span></div>
+              </label>
+              <label class="field">
+                <span>Niguiri</span>
+                <div class="unit-wrap"><input type="number" min="0" step="1" inputmode="numeric" id="fNiguiri" placeholder="0"><span class="unit">un</span></div>
+              </label>
+              <label class="field">
+                <span>Especial</span>
+                <div class="unit-wrap"><input type="number" min="0" step="1" inputmode="numeric" id="fEspecial" placeholder="0"><span class="unit">un</span></div>
+              </label>
+              <label class="field">
+                <span>Enrolados</span>
+                <div class="unit-wrap"><input type="number" min="0" step="1" inputmode="numeric" id="fEnrolados" placeholder="0"><span class="unit">un</span></div>
+              </label>
+              <label class="field">
+                <span>Sashimi</span>
+                <div class="unit-wrap"><input type="number" min="0" step="1" inputmode="numeric" id="fSashimi" placeholder="0"><span class="unit">un</span></div>
+              </label>
+            </div>
+          </fieldset>
+
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary" id="submitLoteBtn">Registrar lote</button>
+            <button type="button" class="btn btn-outline" id="cancelEditBtn" hidden>Cancelar</button>
+          </div>
+        </form>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h2>Resumo do lote</h2></div>
+
+        <div class="stat-row">
+          <div class="stat">
+            <span class="label">Peso inicial</span>
+            <span class="value num" id="sPesoInicial">0<span class="u">g</span></span>
+          </div>
+          <div class="stat">
+            <span class="label">Peso líquido (Lombo+Barriga)</span>
+            <span class="value num" id="sLiquido">0<span class="u">g</span></span>
+          </div>
+        </div>
+
+        <div class="check-row">
+          <span class="k">Total de perdas (Descarte+Apara+Pele)</span>
+          <span class="v num" id="sPerdas">0 g</span>
+        </div>
+        <div class="check-row">
+          <span class="k">Peso inicial esperado (líquido+perdas)</span>
+          <span class="v num" id="sPesoInicialEsperado">0 g</span>
+        </div>
+        <div class="check-row">
+          <span class="k">Conferência de pesagem</span>
+          <span id="sConferencia"><span class="badge neutral">sem dados</span></span>
+        </div>
+        <div class="check-row" style="border-bottom:1px solid var(--border);margin-bottom:14px;">
+          <span class="k">Total produzido</span>
+          <span class="v num" id="sProduzido">0 un</span>
+        </div>
+
+        <div class="meter" style="margin-bottom:0;">
+          <div class="top-row">
+            <span class="lab">Rendimento sobre peso inicial</span>
+            <span class="pct num" id="sRendimentoPct">0%</span>
+          </div>
+          <div class="meter-track"><div class="meter-fill" id="sRendimentoFill" style="width:0%"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <h2>Histórico de lotes</h2>
+        <button class="btn btn-outline btn-sm" id="copyLotesBtn">Copiar dados (CSV)</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Lote</th><th>Data</th><th>P. inicial</th><th>P. líquido</th><th>Produzido (un)</th><th>Rendimento</th><th></th>
+            </tr>
+          </thead>
+          <tbody id="lotesTbody">
+            <tr class="empty-row"><td colspan="7">Nenhum lote registrado ainda hoje.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== MÓDULO 2 ===================== -->
+  <section class="view" id="view2" role="tabpanel" aria-labelledby="tabBtn2" hidden>
+
+    <div class="card">
+      <div class="card-head">
+        <h2>Importar pedido de produção</h2>
+        <span class="hint">arquivo .csv, .xlsx ou .xls</span>
+      </div>
+      <div class="import-zone" id="importZone">
+        <input type="file" id="fileInput" accept=".csv,.xlsx,.xls">
+        <div class="icon">📥</div>
+        <p><strong>Toque para importar</strong> ou solte o arquivo do pedido aqui<br>colunas esperadas: Produto e Quantidade</p>
+      </div>
+      <div class="pedido-select-row" style="margin-top:14px;">
+        <select id="pedidoSelect"><option value="">Nenhum pedido importado</option></select>
+      </div>
+    </div>
+
+    <div id="pedidoBoard"></div>
+
+    <div class="card">
+      <div class="card-head">
+        <h2>Registro de envios</h2>
+        <span class="hint" id="logCount">0 lançamentos</span>
+      </div>
+      <div class="table-wrap">
+        <table class="log-table">
+          <thead><tr><th>Horário</th><th>Pedido</th><th>Produto</th><th>Qtd. enviada</th><th>Funcionário</th><th></th></tr></thead>
+          <tbody id="logTbody">
+            <tr class="empty-row"><td colspan="6">Nenhum envio registrado ainda.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== ACOMPANHAMENTO ===================== -->
+  <section class="view" id="view3" role="tabpanel" aria-labelledby="tabBtn3" hidden>
+    <div class="card">
+      <div class="card-head">
+        <h2>Histórico de lotes (hoje)</h2>
+        <span class="hint" id="acompUpdatedAt">—</span>
+      </div>
+      <div id="acompLotesHoje"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <h2>Total do dia · todos os pedidos</h2>
+      </div>
+      <div id="acompTotalDia"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <h2>Pedidos do dia · Sushibar</h2>
+        <button class="btn btn-ghost btn-sm" id="refreshAcompBtn">Atualizar</button>
+      </div>
+      <div id="acompPedidos"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <h2>Produção por funcionário (hoje)</h2>
+      </div>
+      <div id="acompFuncionarios"></div>
+    </div>
+  </section>
+</div>
+
+<div id="toast"><span class="dot"></span><span id="toastMsg">Salvo</span></div>
+
+<div class="modal-backdrop" id="modalBackdrop" hidden>
+  <div class="modal-box" id="modalBox"></div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ---------------- Firebase (Realtime Database) ---------------- */
+  // 1) Crie um projeto em https://console.firebase.google.com, ative o "Realtime Database"
+  //    e cole aqui o objeto de configuração que o Firebase te dá (Configurações do projeto
+  //    > Geral > seus apps > SDK setup and configuration > Config).
+  // 2) Enquanto os valores abaixo estiverem como "SUBSTITUA_AQUI", o app roda normalmente
+  //    mas NÃO salva nada — fica um aviso na tela lembrando disso.
+  var firebaseConfig = {
+    apiKey: "AIzaSyDF8tXjLn_YrHnu5hGIHfuz5wJawUj1zZU",
+    authDomain: "kadan-producao.firebaseapp.com",
+    databaseURL: "https://kadan-producao-default-rtdb.firebaseio.com",
+    projectId: "kadan-producao",
+    storageBucket: "kadan-producao.firebasestorage.app",
+    messagingSenderId: "104751109467",
+    appId: "1:104751109467:web:b4409362b66e72db64f67e"
+  };
+
+  var firebaseConfigured = firebaseConfig.apiKey !== "SUBSTITUA_AQUI" && !!firebaseConfig.databaseURL;
+  var db = null;
+  var auth = null;
+  if(firebaseConfigured){
+    try{
+      firebase.initializeApp(firebaseConfig);
+      db = firebase.database();
+      auth = firebase.auth();
+    }catch(e){
+      firebaseConfigured = false;
+      console.error('Falha ao iniciar o Firebase:', e);
+    }
+  }
+
+  /* ---------------- storage helpers ----------------
+     Cada coleção vira um "nó" no Realtime Database (ex.: /lotes, /pedidos).
+     Sempre gravamos a lista inteira de uma vez (mesmo padrão que já era usado no
+     localStorage) — simples e suficiente para o volume de dados de uma cozinha,
+     mas duas gravações praticamente simultâneas de tablets diferentes podem
+     fazer uma sobrescrever a outra (a última a chegar vence). */
+  var LS_LOTES = 'lotes';
+  var LS_PEDIDOS = 'pedidos';
+  var LS_ENVIOS = 'envios';
+  var LS_FUNCIONARIOS = 'funcionarios';
+
+  function safeSet(key, value){
+    if(!firebaseConfigured){
+      toast('Firebase não configurado — nada foi salvo');
+      return;
+    }
+    db.ref(key).set(value).catch(function(err){
+      console.error('Erro ao salvar no Firebase (' + key + '):', err);
+      toast('Erro ao salvar: verifique as regras do Realtime Database');
+    });
+  }
+
+  var state = {
+    lotes: [],
+    pedidos: [],
+    envios: [],
+    funcionarios: [],
+    editingLoteId: null,
+    pedidoAtualId: null,
+    confirmDeleteId: null,
+    familiaAberta: {},
+    pedidoAcompAberto: {}
+  };
+
+  function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
+  function dataLocalISO(d){
+    var m = String(d.getMonth()+1).padStart(2,'0');
+    var day = String(d.getDate()).padStart(2,'0');
+    return d.getFullYear() + '-' + m + '-' + day;
+  }
+  function todayISO(){ return dataLocalISO(new Date()); }
+  function fmtDateBR(iso){
+    if(!iso) return '—';
+    var parts = iso.split('-');
+    if(parts.length!==3) return iso;
+    return parts[2] + '/' + parts[1] + '/' + parts[0];
+  }
+  function n(v){ v = parseFloat(v); return isNaN(v) ? 0 : v; }
+  function fmtG(v){ return Math.round(v).toLocaleString('pt-BR') + ' g'; }
+  function fmtNum(v){ return Math.round(v).toLocaleString('pt-BR'); }
+  function fmtPct(v){ return (Math.round(v*10)/10).toLocaleString('pt-BR') + '%'; }
+  function fmtTime(iso){
+    var d = new Date(iso);
+    return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+  }
+
+  var toastTimer = null;
+  function toast(msg){
+    var el = document.getElementById('toast');
+    document.getElementById('toastMsg').textContent = msg;
+    el.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function(){ el.classList.remove('show'); }, 2200);
+  }
+
+  /* ---------------- modal ---------------- */
+  var modalBackdrop = document.getElementById('modalBackdrop');
+  var modalBox = document.getElementById('modalBox');
+  function openModal(html){ modalBox.innerHTML = html; modalBackdrop.hidden = false; }
+  function closeModal(){ modalBackdrop.hidden = true; modalBox.innerHTML = ''; }
+  modalBackdrop.addEventListener('click', function(e){ if(e.target === modalBackdrop) closeModal(); });
+
+  /* ---------------- tabs ---------------- */
+  var tabBtn1 = document.getElementById('tabBtn1');
+  var tabBtn2 = document.getElementById('tabBtn2');
+  var tabBtn3 = document.getElementById('tabBtn3');
+  var view1 = document.getElementById('view1');
+  var view2 = document.getElementById('view2');
+  var view3 = document.getElementById('view3');
+  var currentTab = '1';
+  function setTab(which){
+    currentTab = which;
+    view1.hidden = which !== '1';
+    view2.hidden = which !== '2';
+    view3.hidden = which !== '3';
+    tabBtn1.classList.toggle('active', which === '1');
+    tabBtn2.classList.toggle('active', which === '2');
+    tabBtn3.classList.toggle('active', which === '3');
+    tabBtn1.setAttribute('aria-selected', which === '1');
+    tabBtn2.setAttribute('aria-selected', which === '2');
+    tabBtn3.setAttribute('aria-selected', which === '3');
+    if(which === '3') renderAcompanhamento();
+    try{ localStorage.setItem('fluxosalmao_tab', which); }catch(e){}
+  }
+  tabBtn1.addEventListener('click', function(){ setTab('1'); });
+  tabBtn2.addEventListener('click', function(){ setTab('2'); });
+  tabBtn3.addEventListener('click', function(){ setTab('3'); });
+
+  /* ================= MÓDULO 1 ================= */
+  var fLote = document.getElementById('fLote');
+  var fData = document.getElementById('fData');
+  var fPesoInicial = document.getElementById('fPesoInicial');
+  var fLombo = document.getElementById('fLombo');
+  var fBarriga = document.getElementById('fBarriga');
+  var fDescarte = document.getElementById('fDescarte');
+  var fApara = document.getElementById('fApara');
+  var fPele = document.getElementById('fPele');
+  var fJoe = document.getElementById('fJoe');
+  var fNiguiri = document.getElementById('fNiguiri');
+  var fEspecial = document.getElementById('fEspecial');
+  var fEnrolados = document.getElementById('fEnrolados');
+  var fSashimi = document.getElementById('fSashimi');
+  var weightInputs = [fPesoInicial,fLombo,fBarriga,fDescarte,fApara,fPele,fJoe,fNiguiri,fEspecial,fEnrolados,fSashimi];
+
+  fData.value = todayISO();
+
+  function currentFormValues(){
+    return {
+      lote: fLote.value.trim(),
+      data: fData.value,
+      pesoInicial: n(fPesoInicial.value),
+      lombo: n(fLombo.value),
+      barriga: n(fBarriga.value),
+      descarte: n(fDescarte.value),
+      apara: n(fApara.value),
+      pele: n(fPele.value),
+      joe: n(fJoe.value),
+      niguiri: n(fNiguiri.value),
+      especial: n(fEspecial.value),
+      enrolados: n(fEnrolados.value),
+      sashimi: n(fSashimi.value)
+    };
+  }
+
+  function updateSummary(){
+    var v = currentFormValues();
+    var liquido = v.lombo + v.barriga;
+    var perdas = v.descarte + v.apara + v.pele;
+    var pesoInicialEsperado = liquido + perdas;
+    var produzido = v.joe + v.niguiri + v.especial + v.enrolados + v.sashimi;
+
+    document.getElementById('fLiquidoReadout').textContent = fmtNum(liquido);
+    document.getElementById('sPesoInicial').innerHTML = fmtNum(v.pesoInicial) + '<span class="u">g</span>';
+    document.getElementById('sLiquido').innerHTML = fmtNum(liquido) + '<span class="u">g</span>';
+    document.getElementById('sPerdas').textContent = fmtG(perdas);
+    document.getElementById('sPesoInicialEsperado').textContent = fmtG(pesoInicialEsperado);
+    document.getElementById('sProduzido').textContent = fmtNum(produzido) + ' un';
+
+    var confEl = document.getElementById('sConferencia');
+    if(v.pesoInicial <= 0 && pesoInicialEsperado === 0){
+      confEl.innerHTML = '<span class="badge neutral">sem dados</span>';
+    } else if(v.pesoInicial <= 0){
+      confEl.innerHTML = '<span class="badge neutral">informe o peso inicial</span>';
+    } else {
+      var diff = v.pesoInicial - pesoInicialEsperado;
+      var pctDiff = Math.abs(diff) / v.pesoInicial * 100;
+      if(pctDiff <= 3){
+        confEl.innerHTML = '<span class="badge good">Pesagem conferida</span>';
+      } else if(pctDiff <= 8){
+        confEl.innerHTML = '<span class="badge warning">Diferença de ' + fmtG(Math.abs(diff)) + '</span>';
+      } else {
+        confEl.innerHTML = '<span class="badge critical">Diferença de ' + fmtG(Math.abs(diff)) + '</span>';
+      }
+    }
+
+    var rendEl = document.getElementById('sRendimentoPct');
+    var fill = document.getElementById('sRendimentoFill');
+    if(v.pesoInicial > 0){
+      var rendimento = liquido / v.pesoInicial * 100;
+      rendEl.textContent = fmtPct(rendimento);
+      fill.style.width = Math.min(rendimento,100) + '%';
+      fill.className = 'meter-fill' + (rendimento > 100 ? ' critical' : '');
+    } else {
+      rendEl.textContent = '—';
+      fill.style.width = '0%';
+      fill.className = 'meter-fill';
+    }
+  }
+
+  weightInputs.forEach(function(inp){ inp.addEventListener('input', updateSummary); });
+
+  function resetForm(){
+    document.getElementById('loteForm').reset();
+    fData.value = todayISO();
+    state.editingLoteId = null;
+    document.getElementById('formTitle').textContent = 'Registrar lote de salmão';
+    document.getElementById('submitLoteBtn').textContent = 'Registrar lote';
+    document.getElementById('cancelEditBtn').hidden = true;
+    updateSummary();
+  }
+
+  document.getElementById('cancelEditBtn').addEventListener('click', resetForm);
+
+  document.getElementById('loteForm').addEventListener('submit', function(e){
+    e.preventDefault();
+    var v = currentFormValues();
+    if(!v.lote){ fLote.focus(); return; }
+    var liquido = v.lombo + v.barriga;
+    var produzido = v.joe + v.niguiri + v.especial + v.enrolados + v.sashimi;
+
+    if(state.editingLoteId){
+      var idx = state.lotes.findIndex(function(l){ return l.id === state.editingLoteId; });
+      if(idx > -1){
+        state.lotes[idx] = Object.assign({id: state.editingLoteId, criadoEm: state.lotes[idx].criadoEm}, v, {liquido: liquido, produzido: produzido});
+      }
+      toast('Lote atualizado');
+    } else {
+      state.lotes.unshift(Object.assign({id: uid(), criadoEm: new Date().toISOString()}, v, {liquido: liquido, produzido: produzido}));
+      toast('Lote registrado');
+    }
+    safeSet(LS_LOTES, state.lotes);
+    resetForm();
+    renderLotes();
+  });
+
+  function loteRendimento(l){
+    return l.pesoInicial > 0 ? (l.liquido / l.pesoInicial * 100) : 0;
+  }
+
+  function renderLotes(){
+    var tbody = document.getElementById('lotesTbody');
+    document.getElementById('tabCount1').textContent = state.lotes.length;
+    if(!state.lotes.length){
+      tbody.innerHTML = '<tr class="empty-row"><td colspan="7">Nenhum lote registrado ainda hoje.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = state.lotes.map(function(l){
+      var rend = loteRendimento(l);
+      var isConfirm = state.confirmDeleteId === l.id;
+      return '<tr>' +
+        '<td><strong>' + escapeHtml(l.lote) + '</strong></td>' +
+        '<td>' + fmtDateBR(l.data) + '</td>' +
+        '<td class="num">' + fmtNum(l.pesoInicial) + ' g</td>' +
+        '<td class="num">' + fmtNum(l.liquido) + ' g</td>' +
+        '<td class="num">' + fmtNum(l.produzido) + ' un</td>' +
+        '<td class="num">' + fmtPct(rend) + '</td>' +
+        '<td><div class="row-actions">' +
+          '<button class="btn btn-ghost btn-sm" data-edit-lote="' + l.id + '">Editar</button>' +
+          '<button class="btn btn-danger btn-sm" data-del-lote="' + l.id + '">' + (isConfirm ? 'Confirmar' : 'Excluir') + '</button>' +
+        '</div></td>' +
+      '</tr>';
+    }).join('');
+  }
+
+  document.getElementById('lotesTbody').addEventListener('click', function(e){
+    var editId = e.target.getAttribute('data-edit-lote');
+    var delId = e.target.getAttribute('data-del-lote');
+    if(editId){
+      var l = state.lotes.find(function(x){ return x.id === editId; });
+      if(!l) return;
+      fLote.value = l.lote; fData.value = l.data;
+      fPesoInicial.value = l.pesoInicial || '';
+      fLombo.value = l.lombo || ''; fBarriga.value = l.barriga || '';
+      fDescarte.value = l.descarte || '';
+      fApara.value = l.apara || ''; fPele.value = l.pele || '';
+      fJoe.value = l.joe || ''; fNiguiri.value = l.niguiri || '';
+      fEspecial.value = l.especial || ''; fEnrolados.value = l.enrolados || '';
+      fSashimi.value = l.sashimi || '';
+      state.editingLoteId = l.id;
+      document.getElementById('formTitle').textContent = 'Editar lote ' + l.lote;
+      document.getElementById('submitLoteBtn').textContent = 'Salvar alterações';
+      document.getElementById('cancelEditBtn').hidden = false;
+      updateSummary();
+      window.scrollTo({top:0, behavior:'smooth'});
+    } else if(delId){
+      if(state.confirmDeleteId === delId){
+        state.lotes = state.lotes.filter(function(x){ return x.id !== delId; });
+        safeSet(LS_LOTES, state.lotes);
+        state.confirmDeleteId = null;
+        toast('Lote excluído');
+        renderLotes();
+      } else {
+        state.confirmDeleteId = delId;
+        renderLotes();
+        setTimeout(function(){
+          if(state.confirmDeleteId === delId){ state.confirmDeleteId = null; renderLotes(); }
+        }, 3000);
+      }
+    }
+  });
+
+  document.getElementById('copyLotesBtn').addEventListener('click', function(){
+    var header = ['Lote','Data','PesoInicial(g)','Lombo(g)','Barriga(g)','Liquido(g)','Descarte(g)','Apara(g)','Pele(g)','Joe(un)','Niguiri(un)','Especial(un)','Enrolados(un)','Sashimi(un)','ProduzidoTotal(un)','Rendimento(%)'];
+    var rows = state.lotes.map(function(l){
+      return [l.lote,l.data,l.pesoInicial,l.lombo,l.barriga,l.liquido,l.descarte,l.apara,l.pele,l.joe,l.niguiri,l.especial,l.enrolados,l.sashimi,l.produzido, Math.round(loteRendimento(l)*10)/10].join(';');
+    });
+    var csv = header.join(';') + '\n' + rows.join('\n');
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(csv).then(function(){ toast('CSV copiado'); }).catch(function(){ toast('Não foi possível copiar'); });
+    } else {
+      toast('Cópia não suportada neste navegador');
+    }
+  });
+
+  function escapeHtml(s){
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){
+      return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c];
+    });
+  }
+
+  /* ================= MÓDULO 2 ================= */
+  var fileInput = document.getElementById('fileInput');
+  var pedidoSelect = document.getElementById('pedidoSelect');
+
+  function inferirFamilia(produto, familiaExplicita){
+    if(familiaExplicita && String(familiaExplicita).trim()) return String(familiaExplicita).trim();
+    var s = String(produto||'').toLowerCase();
+    if(/\bjoe\b/.test(s)) return 'Joe';
+    if(/nigu?iri/.test(s)) return 'Niguiri';
+    if(/especial/.test(s)) return 'Especial';
+    if(/enrolad/.test(s)) return 'Enrolados';
+    if(/sashimi/.test(s)) return 'Sashimi';
+    return 'Outros';
+  }
+
+  function parseRowsToItens(rows){
+    // rows: array of arrays. find header row containing produto/quantidade/família-like columns.
+    var headerIdx = -1, prodCol = -1, qtyCol = -1, famCol = -1;
+    for(var i=0;i<Math.min(rows.length,5);i++){
+      var row = rows[i] || [];
+      var pIdx = -1, qIdx = -1, fIdx = -1;
+      row.forEach(function(cell, ci){
+        var s = String(cell||'').toLowerCase();
+        if(pIdx===-1 && /produto|item|descri|sku/.test(s)) pIdx = ci;
+        if(qIdx===-1 && /quant|qtd|pedido|solicit|peças|pecas|pçs/.test(s)) qIdx = ci;
+        if(fIdx===-1 && /fam[ií]lia|categoria|grupo|tipo/.test(s)) fIdx = ci;
+      });
+      if(pIdx>-1 && qIdx>-1){ headerIdx=i; prodCol=pIdx; qtyCol=qIdx; famCol=fIdx; break; }
+    }
+    var startRow;
+    if(headerIdx>-1){
+      startRow = headerIdx+1;
+    } else {
+      // no header detected: assume col0=produto, col1=quantidade, and first row might still be a header if col1 isn't numeric
+      prodCol = 0; qtyCol = 1;
+      var first = rows[0] || [];
+      startRow = (first.length>1 && isNaN(parseFloat(first[1]))) ? 1 : 0;
+    }
+    var itens = [];
+    var ultimaFamilia = null; // planilhas exportadas do Excel costumam ter a Categoria em célula
+                               // mesclada: só a primeira linha do grupo traz o valor, as demais ficam
+                               // em branco — por isso repetimos o último valor visto até aparecer outro.
+    for(var r=startRow;r<rows.length;r++){
+      var row2 = rows[r] || [];
+      var produto = row2[prodCol];
+      var qty = row2[qtyCol];
+      if(famCol>-1){
+        var famCelula = row2[famCol];
+        if(famCelula != null && String(famCelula).trim() !== ''){ ultimaFamilia = String(famCelula).trim(); }
+      }
+      if(produto == null || String(produto).trim()==='') continue;
+      var qn = parseFloat(String(qty).toString().replace(',','.'));
+      if(isNaN(qn)) continue;
+      var produtoNome = String(produto).trim();
+      var familiaBruta = famCol>-1 ? ultimaFamilia : null;
+      itens.push({ produto: produtoNome, solicitado: qn, familia: inferirFamilia(produtoNome, familiaBruta) });
+    }
+    return itens;
+  }
+
+  function parseCSVText(text){
+    var lines = text.split(/\r\n|\n|\r/).filter(function(l){ return l.trim() !== ''; });
+    var delim = (lines[0] && lines[0].split(';').length > lines[0].split(',').length) ? ';' : ',';
+    return lines.map(function(l){ return l.split(delim).map(function(c){ return c.trim().replace(/^"|"$/g,''); }); });
+  }
+
+  function handleImportedItens(itens, filename){
+    if(!itens.length){ toast('Não foi possível identificar itens no arquivo'); return; }
+    var pedido = {
+      id: uid(),
+      nome: filename.replace(/\.[^.]+$/, ''),
+      criadoEm: new Date().toISOString(),
+      itens: itens
+    };
+    state.pedidos.push(pedido);
+    state.pedidoAtualId = pedido.id;
+    safeSet(LS_PEDIDOS, state.pedidos);
+    toast(itens.length + ' itens importados');
+    renderPedidoSelect();
+    renderPedidoBoard();
+  }
+
+  fileInput.addEventListener('change', function(){
+    var file = fileInput.files && fileInput.files[0];
+    if(!file) return;
+    var name = file.name.toLowerCase();
+    if(name.endsWith('.csv')){
+      var reader = new FileReader();
+      reader.onload = function(){
+        var rows = parseCSVText(String(reader.result));
+        handleImportedItens(parseRowsToItens(rows), file.name);
+      };
+      reader.readAsText(file);
+    } else {
+      var reader2 = new FileReader();
+      reader2.onload = function(){
+        try{
+          var data = new Uint8Array(reader2.result);
+          var wb = XLSX.read(data, {type:'array'});
+          var sheet = wb.Sheets[wb.SheetNames[0]];
+          var rows = XLSX.utils.sheet_to_json(sheet, {header:1, raw:false, defval:''});
+          handleImportedItens(parseRowsToItens(rows), file.name);
+        }catch(err){
+          toast('Erro ao ler planilha');
+        }
+      };
+      reader2.readAsArrayBuffer(file);
+    }
+    fileInput.value = '';
+  });
+
+  function renderPedidoSelect(){
+    if(!state.pedidos.length){
+      pedidoSelect.innerHTML = '<option value="">Nenhum pedido importado</option>';
+      return;
+    }
+    pedidoSelect.innerHTML = state.pedidos.slice().reverse().map(function(p){
+      var d = new Date(p.criadoEm);
+      var label = p.nome + ' · ' + String(d.getDate()).padStart(2,'0') + '/' + String(d.getMonth()+1).padStart(2,'0') + ' ' + fmtTime(p.criadoEm);
+      return '<option value="' + p.id + '"' + (p.id===state.pedidoAtualId?' selected':'') + '>' + escapeHtml(label) + '</option>';
+    }).join('');
+  }
+  pedidoSelect.addEventListener('change', function(){
+    state.pedidoAtualId = pedidoSelect.value || null;
+    renderPedidoBoard();
+  });
+
+  function enviadoTotal(pedidoId, produto){
+    return state.envios.filter(function(e){ return e.pedidoId===pedidoId && e.produto===produto; })
+      .reduce(function(s,e){ return s + e.quantidade; }, 0);
+  }
+
+  function enviosDoItem(pedidoId, produto){
+    return state.envios
+      .filter(function(e){ return e.pedidoId===pedidoId && e.produto===produto; })
+      .sort(function(a,b){ return new Date(a.horario) - new Date(b.horario); });
+  }
+
+  // Calcula os indicadores de um pedido (itens, unidades/peças e % por categoria).
+  // Compartilhado entre o board de Produção Buffet e o Acompanhamento, para os dois
+  // exibirem exatamente os mesmos números.
+  function calcPedidoResumo(pedido){
+    var totalSolicitado = 0, totalEnviado = 0, itensCompletos = 0;
+    var grupos = {}, ordemGrupos = [];
+    pedido.itens.forEach(function(it){
+      var fam = it.familia || 'Outros';
+      if(!grupos[fam]){ grupos[fam] = []; ordemGrupos.push(fam); }
+      grupos[fam].push(it);
+    });
+    ordemGrupos.sort(function(a,b){
+      if(a === 'Outros') return 1;
+      if(b === 'Outros') return -1;
+      return 0;
+    });
+    var resumoCategorias = ordemGrupos.map(function(fam){
+      var itensFam = grupos[fam];
+      var famSolicitado = 0, famEnviadoCapped = 0;
+      itensFam.forEach(function(it){
+        var env = enviadoTotal(pedido.id, it.produto);
+        var envCapped = Math.min(env, it.solicitado);
+        totalSolicitado += it.solicitado;
+        totalEnviado += envCapped;
+        famSolicitado += it.solicitado;
+        famEnviadoCapped += envCapped;
+        if(env >= it.solicitado) itensCompletos++;
+      });
+      var famPct = famSolicitado > 0 ? Math.min(famEnviadoCapped / famSolicitado * 100, 100) : 0;
+      return { nome: fam, solicitado: famSolicitado, enviado: famEnviadoCapped, pct: famPct };
+    });
+    var progressoGeral = totalSolicitado > 0 ? (totalEnviado / totalSolicitado * 100) : 0;
+    var progressoItens = pedido.itens.length > 0 ? (itensCompletos / pedido.itens.length * 100) : 0;
+    return {
+      totalItens: pedido.itens.length,
+      totalSolicitado: totalSolicitado,
+      totalEnviado: totalEnviado,
+      itensCompletos: itensCompletos,
+      progressoItens: progressoItens,
+      progressoGeral: progressoGeral,
+      resumoCategorias: resumoCategorias
+    };
+  }
+
+  // Agrega os indicadores de vários pedidos em um único total (ex.: todos os pedidos importados no dia).
+  function calcResumoAgregado(pedidos){
+    var totalItens = 0, itensCompletos = 0, totalSolicitado = 0, totalEnviado = 0;
+    var categoriasMap = {}, ordemCategorias = [];
+    pedidos.forEach(function(pedido){
+      var r = calcPedidoResumo(pedido);
+      totalItens += r.totalItens;
+      itensCompletos += r.itensCompletos;
+      totalSolicitado += r.totalSolicitado;
+      totalEnviado += r.totalEnviado;
+      r.resumoCategorias.forEach(function(c){
+        if(!categoriasMap[c.nome]){ categoriasMap[c.nome] = { solicitado:0, enviado:0 }; ordemCategorias.push(c.nome); }
+        categoriasMap[c.nome].solicitado += c.solicitado;
+        categoriasMap[c.nome].enviado += c.enviado;
+      });
+    });
+    ordemCategorias.sort(function(a,b){
+      if(a === 'Outros') return 1;
+      if(b === 'Outros') return -1;
+      return 0;
+    });
+    var resumoCategorias = ordemCategorias.map(function(nome){
+      var d = categoriasMap[nome];
+      var pct = d.solicitado > 0 ? Math.min(d.enviado / d.solicitado * 100, 100) : 0;
+      return { nome: nome, solicitado: d.solicitado, enviado: d.enviado, pct: pct };
+    });
+    var progressoGeral = totalSolicitado > 0 ? (totalEnviado / totalSolicitado * 100) : 0;
+    var progressoItens = totalItens > 0 ? (itensCompletos / totalItens * 100) : 0;
+    return {
+      totalItens: totalItens,
+      totalSolicitado: totalSolicitado,
+      totalEnviado: totalEnviado,
+      itensCompletos: itensCompletos,
+      progressoItens: progressoItens,
+      progressoGeral: progressoGeral,
+      resumoCategorias: resumoCategorias
+    };
+  }
+
+  // Monta o HTML das duas linhas de indicadores (itens / unidades) + painel de % por categoria.
+  // opts.mostrarQtdCategoria: também exibe "enviado/solicitado" (peças) ao lado do % de cada categoria.
+  function renderResumoIndicadoresHtml(resumo, opts){
+    opts = opts || {};
+    var catProgressHtml = resumo.resumoCategorias.map(function(c){
+      var fillClass = c.pct >= 100 ? 'good' : '';
+      var qtyHtml = opts.mostrarQtdCategoria
+        ? '<span class="cat-progress-qty">' + fmtNum(c.enviado) + '/' + fmtNum(c.solicitado) + '</span>'
+        : '';
+      return '<div class="cat-progress-row">' +
+        '<span class="cat-progress-name" title="' + escapeHtml(c.nome) + '">' + escapeHtml(c.nome) + '</span>' +
+        qtyHtml +
+        '<div class="cat-progress-bar"><div class="cat-progress-fill ' + fillClass + '" style="width:' + Math.min(c.pct,100) + '%"></div></div>' +
+        '<span class="cat-progress-pct">' + fmtPct(c.pct) + '</span>' +
+      '</div>';
+    }).join('');
+
+    return '<div class="kpi-row-compact">' +
+        '<div class="kpi-compact"><span class="label">Itens do pedido</span><span class="value">' + resumo.totalItens + '</span></div>' +
+        '<div class="kpi-compact"><span class="label">Itens completos</span><span class="value">' + resumo.itensCompletos + ' / ' + resumo.totalItens + '</span></div>' +
+        '<div class="kpi-compact"><span class="label">Progresso geral</span><span class="value">' + fmtPct(resumo.progressoItens) + '</span></div>' +
+      '</div>' +
+      '<div class="kpi-row-compact">' +
+        '<div class="kpi-compact"><span class="label">Unidades do pedido</span><span class="value">' + fmtNum(resumo.totalSolicitado) + '</span></div>' +
+        '<div class="kpi-compact"><span class="label">Unidades completas</span><span class="value">' + fmtNum(resumo.totalEnviado) + ' / ' + fmtNum(resumo.totalSolicitado) + '</span></div>' +
+        '<div class="kpi-compact"><span class="label">Progresso das quantidades</span><span class="value">' + fmtPct(resumo.progressoGeral) + '</span></div>' +
+      '</div>' +
+      '<div class="cat-progress-panel">' +
+        '<div class="cat-progress-title">% realizado por categoria</div>' +
+        (catProgressHtml || '<p class="modal-sub" style="margin:0;">Sem itens categorizados.</p>') +
+      '</div>';
+  }
+
+  /* ---- modal: escolher funcionário ao lançar um envio ---- */
+  var pendingEnvio = null;
+
+  function openFuncionarioModal(pedidoId, produto, quantidade){
+    pendingEnvio = { pedidoId: pedidoId, produto: produto, quantidade: quantidade };
+    renderFuncionarioModal();
+  }
+
+  function renderFuncionarioModal(){
+    var pills = state.funcionarios.map(function(f){
+      return '<button class="func-pill" data-func="' + escapeHtml(f) + '">' + escapeHtml(f) + '</button>';
+    }).join('') || '<p class="modal-sub" style="margin:0;">Nenhum funcionário cadastrado ainda — adicione um abaixo.</p>';
+
+    var html =
+      '<h3>Quem entregou?</h3>' +
+      '<p class="modal-sub">' + fmtNum(pendingEnvio.quantidade) + ' un. de ' + escapeHtml(pendingEnvio.produto) + '</p>' +
+      '<div class="func-grid">' + pills + '</div>' +
+      '<div class="func-add-row">' +
+        '<input type="text" id="novoFuncInput" placeholder="Novo funcionário">' +
+        '<button class="btn btn-ghost btn-sm" id="novoFuncBtn">Adicionar</button>' +
+      '</div>' +
+      '<div class="modal-close-row"><button class="btn btn-outline btn-sm" id="modalCancelBtn">Cancelar</button></div>';
+    openModal(html);
+
+    modalBox.querySelectorAll('.func-pill').forEach(function(btn){
+      btn.addEventListener('click', function(){ confirmEnvioComFuncionario(btn.getAttribute('data-func')); });
+    });
+    document.getElementById('novoFuncBtn').addEventListener('click', addFuncionarioAndSelect);
+    document.getElementById('novoFuncInput').addEventListener('keydown', function(e){
+      if(e.key === 'Enter'){ e.preventDefault(); addFuncionarioAndSelect(); }
+    });
+    document.getElementById('modalCancelBtn').addEventListener('click', function(){ pendingEnvio = null; closeModal(); });
+  }
+
+  function addFuncionarioAndSelect(){
+    var inp = document.getElementById('novoFuncInput');
+    var nome = inp.value.trim();
+    if(!nome) return;
+    if(state.funcionarios.indexOf(nome) === -1){
+      state.funcionarios.push(nome);
+      safeSet(LS_FUNCIONARIOS, state.funcionarios);
+    }
+    confirmEnvioComFuncionario(nome);
+  }
+
+  function confirmEnvioComFuncionario(funcionario){
+    if(!pendingEnvio) return;
+    registrarEnvio(pendingEnvio.pedidoId, pendingEnvio.produto, pendingEnvio.quantidade, funcionario);
+    pendingEnvio = null;
+    closeModal();
+  }
+
+  /* ---- modal: ver lançamentos de um item (horário, quantidade, funcionário) ---- */
+  function renderHistoryModal(pedidoId, produto){
+    var itens = enviosDoItem(pedidoId, produto).slice().reverse();
+    var listHtml = itens.length ? itens.map(function(e){
+      return '<div class="hist-row">' +
+        '<div class="meta"><span class="t num">' + fmtTime(e.horario) + ' · ' + fmtNum(e.quantidade) + ' un</span>' +
+        '<span class="f">' + (e.funcionario ? escapeHtml(e.funcionario) : 'funcionário não informado') + '</span></div>' +
+        '<button class="btn btn-outline btn-sm" data-undo-hist="' + e.id + '">Desfazer</button>' +
+      '</div>';
+    }).join('') : '<p class="modal-sub" style="margin:0;">Nenhum lançamento registrado ainda para este item.</p>';
+
+    var html = '<h3>' + escapeHtml(produto) + '</h3>' +
+      '<p class="modal-sub">Lançamentos, horários e funcionário responsável</p>' +
+      listHtml +
+      '<div class="modal-close-row"><button class="btn btn-outline btn-sm" id="modalCancelBtn">Fechar</button></div>';
+    openModal(html);
+
+    document.getElementById('modalCancelBtn').addEventListener('click', closeModal);
+    modalBox.querySelectorAll('[data-undo-hist]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var id = btn.getAttribute('data-undo-hist');
+        state.envios = state.envios.filter(function(x){ return x.id !== id; });
+        safeSet(LS_ENVIOS, state.envios);
+        toast('Lançamento desfeito');
+        renderPedidoBoard();
+        renderLog();
+        renderHistoryModal(pedidoId, produto);
+      });
+    });
+  }
+
+  /* ---- modal: relatório de conclusão de produção ---- */
+  function renderRelatorioModal(pedido){
+    var itens = pedido.itens.map(function(it){
+      var env = enviadoTotal(pedido.id, it.produto);
+      return { produto: it.produto, solicitado: it.solicitado, enviado: env, diferenca: env - it.solicitado };
+    });
+    var totalSolicitado = itens.reduce(function(s,i){ return s + i.solicitado; }, 0);
+    var totalEnviado = itens.reduce(function(s,i){ return s + i.enviado; }, 0);
+    var totalDiferenca = totalEnviado - totalSolicitado;
+    var itensFalta = itens.filter(function(i){ return i.diferenca < 0; }).length;
+    var itensSobra = itens.filter(function(i){ return i.diferenca > 0; }).length;
+    var itensOk = itens.filter(function(i){ return i.diferenca === 0; }).length;
+
+    function diffLabel(d){ return d===0 ? 'OK' : (d>0 ? 'sobra +' + fmtNum(d) : 'falta ' + fmtNum(Math.abs(d))); }
+    function diffClass(d){ return d>0 ? 'positive' : (d<0 ? 'negative' : ''); }
+
+    var rowsHtml = itens.map(function(i){
+      return '<tr><td>' + escapeHtml(i.produto) + '</td>' +
+        '<td class="num">' + fmtNum(i.solicitado) + '</td>' +
+        '<td class="num">' + fmtNum(i.enviado) + '</td>' +
+        '<td class="diff-cell ' + diffClass(i.diferenca) + '">' + diffLabel(i.diferenca) + '</td></tr>';
+    }).join('');
+
+    var geradoAs = fmtTime(new Date().toISOString());
+    var divergencias = itens.filter(function(i){ return i.diferenca !== 0; });
+
+    var textoLinhas = [
+      '*Divergências de Produção*',
+      pedido.nome,
+      'Gerado às ' + geradoAs,
+      '',
+      'Falta: ' + itensFalta + ' | Sobra: ' + itensSobra,
+      ''
+    ];
+    if(divergencias.length){
+      divergencias.forEach(function(i){
+        textoLinhas.push('• ' + i.produto + ': solicitado ' + fmtNum(i.solicitado) + ', enviado ' + fmtNum(i.enviado) + ' → ' + diffLabel(i.diferenca));
+      });
+    } else {
+      textoLinhas.push('Nenhuma divergência — todos os itens foram entregues conforme solicitado.');
+    }
+    var whatsappUrl = 'https://wa.me/?text=' + encodeURIComponent(textoLinhas.join('\n'));
+
+    var html =
+      '<h3>Relatório de produção</h3>' +
+      '<p class="modal-sub">' + escapeHtml(pedido.nome) + ' · gerado às ' + geradoAs + '</p>' +
+      '<div class="kpi-row" style="margin-bottom:14px;">' +
+        '<div class="kpi"><span class="label">Itens ok</span><span class="value" style="color:' + (itensOk>0?'var(--good)':'inherit') + '">' + itensOk + '</span></div>' +
+        '<div class="kpi"><span class="label">Itens com falta</span><span class="value" style="color:' + (itensFalta>0?'var(--critical)':'inherit') + '">' + itensFalta + '</span></div>' +
+        '<div class="kpi"><span class="label">Itens com sobra</span><span class="value" style="color:' + (itensSobra>0?'var(--warning)':'inherit') + '">' + itensSobra + '</span></div>' +
+      '</div>' +
+      '<div class="table-wrap"><table>' +
+        '<thead><tr><th>Produto</th><th>Solicitado</th><th>Enviado</th><th>Divergência</th></tr></thead>' +
+        '<tbody>' + rowsHtml + '</tbody>' +
+        '<tfoot><tr style="font-weight:700;">' +
+          '<td style="border-top:2px solid var(--border);">Total</td>' +
+          '<td class="num" style="border-top:2px solid var(--border);">' + fmtNum(totalSolicitado) + '</td>' +
+          '<td class="num" style="border-top:2px solid var(--border);">' + fmtNum(totalEnviado) + '</td>' +
+          '<td class="diff-cell ' + diffClass(totalDiferenca) + '" style="border-top:2px solid var(--border);">' + diffLabel(totalDiferenca) + '</td>' +
+        '</tr></tfoot>' +
+      '</table></div>' +
+      '<div class="modal-close-row" style="justify-content:space-between;flex-wrap:wrap;">' +
+        '<div style="display:flex;gap:8px;flex-wrap:wrap;">' +
+          '<button class="btn btn-outline btn-sm" id="copiarRelatorioBtn">Copiar CSV</button>' +
+          '<a class="btn btn-outline btn-sm" href="' + whatsappUrl + '" target="_blank" rel="noopener">🟢 Enviar divergências (WhatsApp)</a>' +
+        '</div>' +
+        '<div style="display:flex;gap:8px;flex-wrap:wrap;">' +
+          '<button class="btn btn-outline btn-sm" id="modalCancelBtn">Fechar</button>' +
+          '<button class="btn btn-primary btn-sm" id="confirmarConclusaoBtn">Confirmar conclusão</button>' +
+        '</div>' +
+      '</div>';
+    openModal(html);
+
+    document.getElementById('modalCancelBtn').addEventListener('click', closeModal);
+    document.getElementById('confirmarConclusaoBtn').addEventListener('click', function(){
+      pedido.concluidoEm = new Date().toISOString();
+      safeSet(LS_PEDIDOS, state.pedidos);
+      toast('Produção concluída');
+      closeModal();
+      renderPedidoBoard();
+      renderPedidoSelect();
+    });
+    document.getElementById('copiarRelatorioBtn').addEventListener('click', function(){
+      var header = ['Produto','Solicitado','Enviado','Divergencia'];
+      var rows = itens.map(function(i){ return [i.produto, i.solicitado, i.enviado, i.diferenca].join(';'); });
+      var csv = header.join(';') + '\n' + rows.join('\n');
+      if(navigator.clipboard && navigator.clipboard.writeText){
+        navigator.clipboard.writeText(csv).then(function(){ toast('CSV copiado'); }).catch(function(){ toast('Não foi possível copiar'); });
+      } else {
+        toast('Cópia não suportada neste navegador');
+      }
+    });
+  }
+
+  function renderPedidoBoard(){
+    var board = document.getElementById('pedidoBoard');
+    var pedido = state.pedidos.find(function(p){ return p.id === state.pedidoAtualId; });
+    if(!pedido){
+      board.innerHTML = '<div class="card"><div class="empty-state"><div class="icon">📋</div>' +
+        '<p>Nenhum pedido ativo. Importe um arquivo de pedido de produção para começar a lançar os envios ao sushibar.</p></div></div>';
+      updateTab2Count();
+      updateTab3Badge();
+      return;
+    }
+    // agrupar por categoria, na ordem em que aparecem no pedido importado ("Outros" sempre por último)
+    var grupos = {};
+    var ordemGrupos = [];
+    pedido.itens.forEach(function(it){
+      var fam = it.familia || 'Outros';
+      if(!grupos[fam]){ grupos[fam] = []; ordemGrupos.push(fam); }
+      grupos[fam].push(it);
+    });
+    ordemGrupos.sort(function(a,b){
+      if(a === 'Outros') return 1;
+      if(b === 'Outros') return -1;
+      return 0;
+    });
+
+    var acordeao = ordemGrupos.map(function(fam){
+      var itensFam = grupos[fam];
+      var famSolicitado = 0, famEnviadoCapped = 0;
+
+      var itemRows = itensFam.map(function(it){
+        var env = enviadoTotal(pedido.id, it.produto);
+        var envCapped = Math.min(env, it.solicitado);
+        famSolicitado += it.solicitado;
+        famEnviadoCapped += envCapped;
+        var restante = Math.max(it.solicitado - env, 0);
+        var excedente = Math.max(env - it.solicitado, 0);
+        var diferenca = env - it.solicitado;
+        var pct = it.solicitado > 0 ? (env / it.solicitado * 100) : 0;
+
+        var stateClass = env <= 0 ? 'zero' : (restante === 0 ? 'complete' : 'partial');
+        var pctClass = excedente > 0 ? 'critical' : (restante===0 ? 'good' : '');
+
+        var diffLabel = diferenca === 0 ? '0' : (diferenca > 0 ? '+' + fmtNum(diferenca) : '−' + fmtNum(Math.abs(diferenca)));
+        var diffClass = diferenca > 0 ? 'positive' : (diferenca < 0 ? 'negative' : '');
+
+        return '<div class="item-row ' + stateClass + '">' +
+          '<div class="item-row-top">' +
+            '<strong>' + escapeHtml(it.produto) + '</strong>' +
+          '</div>' +
+          '<div class="item-stats">' +
+            '<div class="stat-mini"><span class="k">Solic.</span><span class="v">' + fmtNum(it.solicitado) + '</span></div>' +
+            '<div class="stat-mini"><span class="k">Enviado</span><span class="v enviado-link" data-hist-produto="' + escapeHtml(it.produto) + '" title="Ver lançamentos">' + fmtNum(env) + '</span></div>' +
+            '<div class="stat-mini"><span class="k">Diferença</span><span class="v ' + diffClass + '">' + diffLabel + '</span></div>' +
+            '<div class="stat-mini"><span class="k">Progresso</span><span class="v ' + pctClass + '">' + fmtPct(pct) + '</span></div>' +
+          '</div>' +
+          '<div class="item-entry">' +
+            '<input type="number" min="0" step="1" inputmode="numeric" placeholder="Qtd." class="qtyInput" data-produto="' + escapeHtml(it.produto) + '">' +
+            '<button class="btn btn-primary btn-xs sendBtn" data-produto="' + escapeHtml(it.produto) + '">Enviar</button>' +
+          '</div>' +
+        '</div>';
+      }).join('');
+
+      var famKey = pedido.id + '__' + fam;
+      var aberta = state.familiaAberta[famKey] !== false;
+      // % realizado da categoria = peças enviadas (capadas ao solicitado) / peças solicitadas — sempre por quantidade, não por nº de itens
+      var famPct = famSolicitado > 0 ? Math.min(famEnviadoCapped / famSolicitado * 100, 100) : 0;
+
+      return '<div class="familia-acc">' +
+        '<button class="familia-toggle" type="button" data-familia-key="' + escapeHtml(famKey) + '" aria-expanded="' + aberta + '">' +
+          '<span class="chevron">▾</span>' +
+          '<span>' + escapeHtml(fam) + '</span>' +
+          '<span class="familia-meta">' + fmtNum(famEnviadoCapped) + '/' + fmtNum(famSolicitado) + ' peças · ' + fmtPct(famPct) + '</span>' +
+        '</button>' +
+        '<div class="familia-items"' + (aberta ? '' : ' hidden') + ' data-familia-items="' + escapeHtml(famKey) + '">' + itemRows + '</div>' +
+      '</div>';
+    }).join('');
+
+    var concluidoBadge = pedido.concluidoEm
+      ? '<span class="badge good">concluído às ' + fmtTime(pedido.concluidoEm) + '</span>'
+      : '';
+
+    var indicadoresHtml = renderResumoIndicadoresHtml(calcPedidoResumo(pedido));
+
+    board.innerHTML =
+      '<div class="card">' +
+        '<div class="card-head"><h2 id="pedidoNomeLabel" title="clique para renomear" style="cursor:pointer;">' + escapeHtml(pedido.nome) + ' ✏️</h2>' +
+          '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">' +
+            '<span class="hint">importado às ' + fmtTime(pedido.criadoEm) + '</span>' +
+            concluidoBadge +
+            '<button class="btn btn-ghost btn-sm" id="concluirBtn">Concluir produção</button>' +
+          '</div>' +
+        '</div>' +
+        indicadoresHtml +
+        acordeao +
+      '</div>';
+
+    var nomeLabel = document.getElementById('pedidoNomeLabel');
+    if(nomeLabel){
+      nomeLabel.addEventListener('click', function(){
+        var wrap = document.createElement('span');
+        wrap.innerHTML = '<input type="text" id="renameInput" style="min-height:36px;padding:6px 8px;font-size:.95rem;width:220px;" value="' + escapeHtml(pedido.nome) + '">';
+        nomeLabel.replaceWith(wrap);
+        var inp = document.getElementById('renameInput');
+        inp.focus(); inp.select();
+        function commit(){
+          var val = inp.value.trim();
+          if(val){ pedido.nome = val; safeSet(LS_PEDIDOS, state.pedidos); }
+          renderPedidoSelect();
+          renderPedidoBoard();
+        }
+        inp.addEventListener('blur', commit);
+        inp.addEventListener('keydown', function(e){ if(e.key==='Enter') inp.blur(); });
+      });
+    }
+
+    var concluirBtn = document.getElementById('concluirBtn');
+    if(concluirBtn){
+      concluirBtn.addEventListener('click', function(){ renderRelatorioModal(pedido); });
+    }
+
+    board.querySelectorAll('.sendBtn').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var produto = btn.getAttribute('data-produto');
+        var input = board.querySelector('.qtyInput[data-produto="' + cssEscape(produto) + '"]');
+        var qty = n(input.value);
+        if(qty <= 0) return;
+        openFuncionarioModal(pedido.id, produto, qty);
+      });
+    });
+    board.querySelectorAll('.qtyInput').forEach(function(input){
+      input.addEventListener('keydown', function(e){
+        if(e.key !== 'Enter') return;
+        var produto = input.getAttribute('data-produto');
+        var qty = n(input.value);
+        if(qty <= 0) return;
+        openFuncionarioModal(pedido.id, produto, qty);
+      });
+    });
+    board.querySelectorAll('.enviado-link').forEach(function(el){
+      el.addEventListener('click', function(){
+        renderHistoryModal(pedido.id, el.getAttribute('data-hist-produto'));
+      });
+    });
+    board.querySelectorAll('.familia-toggle').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var key = btn.getAttribute('data-familia-key');
+        var aberta = btn.getAttribute('aria-expanded') === 'true';
+        var novaAberta = !aberta;
+        btn.setAttribute('aria-expanded', novaAberta);
+        state.familiaAberta[key] = novaAberta;
+        var itemsEl = board.querySelector('[data-familia-items="' + cssEscape(key) + '"]');
+        if(itemsEl) itemsEl.hidden = !novaAberta;
+      });
+    });
+
+    updateTab2Count();
+    updateTab3Badge();
+  }
+
+  function cssEscape(s){
+    return String(s).replace(/["\\]/g, '\\$&');
+  }
+
+  function registrarEnvio(pedidoId, produto, quantidade, funcionario){
+    state.envios.unshift({ id: uid(), pedidoId: pedidoId, produto: produto, quantidade: quantidade, funcionario: funcionario || '', horario: new Date().toISOString() });
+    safeSet(LS_ENVIOS, state.envios);
+    toast(fmtNum(quantidade) + ' un. de ' + produto + (funcionario ? ' · ' + funcionario : ''));
+    renderPedidoBoard();
+    renderLog();
+  }
+
+  function renderLog(){
+    var tbody = document.getElementById('logTbody');
+    document.getElementById('logCount').textContent = state.envios.length + ' lançamento' + (state.envios.length===1?'':'s');
+    if(!state.envios.length){
+      tbody.innerHTML = '<tr class="empty-row"><td colspan="6">Nenhum envio registrado ainda.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = state.envios.slice(0,200).map(function(e){
+      var pedido = state.pedidos.find(function(p){ return p.id === e.pedidoId; });
+      return '<tr>' +
+        '<td class="num">' + fmtTime(e.horario) + '</td>' +
+        '<td>' + escapeHtml(pedido ? pedido.nome : '—') + '</td>' +
+        '<td>' + escapeHtml(e.produto) + '</td>' +
+        '<td class="qty num">' + fmtNum(e.quantidade) + '</td>' +
+        '<td>' + (e.funcionario ? escapeHtml(e.funcionario) : '—') + '</td>' +
+        '<td><button class="btn btn-outline btn-sm" data-undo-envio="' + e.id + '">Desfazer</button></td>' +
+      '</tr>';
+    }).join('');
+  }
+
+  document.getElementById('logTbody').addEventListener('click', function(e){
+    var id = e.target.getAttribute('data-undo-envio');
+    if(!id) return;
+    state.envios = state.envios.filter(function(x){ return x.id !== id; });
+    safeSet(LS_ENVIOS, state.envios);
+    toast('Envio desfeito');
+    renderPedidoBoard();
+    renderLog();
+  });
+
+  function updateTab2Count(){
+    var pedido = state.pedidos.find(function(p){ return p.id === state.pedidoAtualId; });
+    document.getElementById('tabCount2').textContent = pedido ? pedido.itens.length : 0;
+  }
+
+  function updateTab3Badge(){
+    var pedido = state.pedidos.find(function(p){ return p.id === state.pedidoAtualId; });
+    var pendencias = 0;
+    if(pedido){
+      pedido.itens.forEach(function(it){
+        var env = enviadoTotal(pedido.id, it.produto);
+        if(env < it.solicitado) pendencias++;
+      });
+    }
+    document.getElementById('tabCount3').textContent = pendencias;
+  }
+
+  // Descobre a categoria de um envio a partir do item do pedido a que ele pertence.
+  function categoriaDoEnvio(e){
+    var pedido = state.pedidos.find(function(p){ return p.id === e.pedidoId; });
+    if(!pedido) return 'Outros';
+    var item = pedido.itens.find(function(it){ return it.produto === e.produto; });
+    return (item && item.familia) || 'Outros';
+  }
+
+  // Tabela: quantidade de unidades produzidas/entregues por funcionário e por categoria, no dia.
+  function renderProducaoFuncionariosHtml(hoje){
+    var enviosHoje = state.envios.filter(function(e){ return dataLocalISO(new Date(e.horario)) === hoje; });
+    if(!enviosHoje.length){
+      return '<div class="empty-state"><div class="icon">🧑‍🍳</div><p>Nenhum lançamento registrado hoje ainda.</p></div>';
+    }
+
+    var porFuncionario = {};
+    var funcionariosOrdem = [];
+    var categoriasSet = {};
+    var categoriasOrdem = [];
+    enviosHoje.forEach(function(e){
+      var nome = (e.funcionario && String(e.funcionario).trim()) || 'Não informado';
+      var cat = categoriaDoEnvio(e);
+      if(!porFuncionario[nome]){ porFuncionario[nome] = { __total: 0 }; funcionariosOrdem.push(nome); }
+      porFuncionario[nome][cat] = (porFuncionario[nome][cat] || 0) + e.quantidade;
+      porFuncionario[nome].__total += e.quantidade;
+      if(!categoriasSet[cat]){ categoriasSet[cat] = true; categoriasOrdem.push(cat); }
+    });
+    categoriasOrdem.sort(function(a,b){
+      if(a === 'Outros') return 1;
+      if(b === 'Outros') return -1;
+      return 0;
+    });
+    funcionariosOrdem.sort(function(a,b){ return porFuncionario[b].__total - porFuncionario[a].__total; });
+
+    // Cartões (um por funcionário) com as categorias em chips que quebram linha — sem tabela larga,
+    // assim cabe qualquer quantidade de categorias na tela do celular sem scroll horizontal.
+    var totalPorCategoria = {};
+    categoriasOrdem.forEach(function(c){ totalPorCategoria[c] = 0; });
+    var totalGeral = 0;
+
+    var cardsHtml = funcionariosOrdem.map(function(nome){
+      var d = porFuncionario[nome];
+      var chips = categoriasOrdem.filter(function(c){ return d[c] > 0; }).map(function(c){
+        totalPorCategoria[c] += d[c];
+        return '<div class="stat-mini"><span class="k">' + escapeHtml(c) + '</span><span class="v">' + fmtNum(d[c]) + '</span></div>';
+      }).join('');
+      totalGeral += d.__total;
+      return '<div class="func-prod-card">' +
+        '<div class="func-prod-head"><strong>' + escapeHtml(nome) + '</strong><span class="func-prod-total">' + fmtNum(d.__total) + ' un</span></div>' +
+        '<div class="item-stats">' + chips + '</div>' +
+      '</div>';
+    }).join('');
+
+    var totalChips = categoriasOrdem.filter(function(c){ return totalPorCategoria[c] > 0; }).map(function(c){
+      return '<div class="stat-mini"><span class="k">' + escapeHtml(c) + '</span><span class="v">' + fmtNum(totalPorCategoria[c]) + '</span></div>';
+    }).join('');
+    var totalCardHtml = '<div class="func-prod-card func-prod-total-card">' +
+      '<div class="func-prod-head"><strong>Total geral</strong><span class="func-prod-total">' + fmtNum(totalGeral) + ' un</span></div>' +
+      '<div class="item-stats">' + totalChips + '</div>' +
+    '</div>';
+
+    return cardsHtml + totalCardHtml;
+  }
+
+  /* ---------------- acompanhamento (visão geral da produção) ---------------- */
+  function renderAcompanhamento(){
+    var hoje = todayISO();
+    var lotesHoje = state.lotes.filter(function(l){ return l.data === hoje; });
+
+    // Histórico de lotes de hoje — mesmo modelo da tabela de Aproveitamento Salmão
+    var lotesHtml;
+    if(!lotesHoje.length){
+      lotesHtml = '<div class="empty-state"><div class="icon">🐟</div><p>Nenhum lote registrado hoje ainda.</p></div>';
+    } else {
+      var lotesRowsHtml = lotesHoje.map(function(l){
+        var rend = loteRendimento(l);
+        return '<tr>' +
+          '<td><strong>' + escapeHtml(l.lote) + '</strong></td>' +
+          '<td class="num">' + fmtNum(l.pesoInicial) + ' g</td>' +
+          '<td class="num">' + fmtNum(l.liquido) + ' g</td>' +
+          '<td class="num">' + fmtPct(rend) + '</td>' +
+        '</tr>';
+      }).join('');
+      lotesHtml = '<div class="table-wrap"><table class="table-compact"><thead><tr>' +
+        '<th>Lote</th><th>P. inicial</th><th>P. líquido</th><th>Rendimento</th>' +
+        '</tr></thead><tbody>' + lotesRowsHtml + '</tbody></table></div>';
+    }
+    document.getElementById('acompLotesHoje').innerHTML = lotesHtml;
+
+    // Pedidos do dia (abertos e concluídos)
+    var pedidosHoje = state.pedidos.filter(function(p){ return dataLocalISO(new Date(p.criadoEm)) === hoje; });
+
+    // Total do dia — mesmos indicadores da Produção Buffet, somando todos os pedidos importados hoje
+    var totalDiaHtml;
+    if(!pedidosHoje.length){
+      totalDiaHtml = '<div class="empty-state"><div class="icon">🍣</div><p>Nenhum pedido importado hoje ainda.</p></div>';
+    } else {
+      totalDiaHtml = renderResumoIndicadoresHtml(calcResumoAgregado(pedidosHoje), { mostrarQtdCategoria: true });
+    }
+    document.getElementById('acompTotalDia').innerHTML = totalDiaHtml;
+
+    var pedidosAbertos = pedidosHoje.filter(function(p){ return !p.concluidoEm; });
+    var pedidosConcluidos = pedidosHoje.filter(function(p){ return !!p.concluidoEm; });
+    function porCriacaoDesc(a,b){ return new Date(b.criadoEm) - new Date(a.criadoEm); }
+    pedidosAbertos.sort(porCriacaoDesc);
+    pedidosConcluidos.sort(porCriacaoDesc);
+
+    function cardPedido(p, statusHtml){
+      var ultimoEnvio = state.envios.filter(function(e){ return e.pedidoId === p.id; })
+        .sort(function(a,b){ return new Date(b.horario) - new Date(a.horario); })[0];
+      var ultimoHtml = ultimoEnvio
+        ? fmtTime(ultimoEnvio.horario) + ' · ' + escapeHtml(ultimoEnvio.produto) + ' · ' + fmtNum(ultimoEnvio.quantidade) + ' un' + (ultimoEnvio.funcionario ? ' · ' + escapeHtml(ultimoEnvio.funcionario) : '')
+        : 'nenhum lançamento ainda';
+      var aberto = state.pedidoAcompAberto[p.id] !== false;
+      return '<div class="acomp-pedido-card">' +
+        '<button class="acomp-pedido-toggle" type="button" data-pedido-key="' + escapeHtml(p.id) + '" aria-expanded="' + aberto + '">' +
+          '<span class="chevron">▾</span>' +
+          '<strong>' + escapeHtml(p.nome) + '</strong>' +
+          statusHtml +
+        '</button>' +
+        '<div class="acomp-pedido-body"' + (aberto ? '' : ' hidden') + ' data-pedido-body="' + escapeHtml(p.id) + '">' +
+          '<p class="modal-sub" style="margin:8px 0 10px;">último lançamento: ' + ultimoHtml + '</p>' +
+          renderResumoIndicadoresHtml(calcPedidoResumo(p)) +
+        '</div>' +
+      '</div>';
+    }
+
+    var pedidosHtml;
+    if(!pedidosHoje.length){
+      pedidosHtml = '<div class="empty-state"><div class="icon">🍣</div><p>Nenhum pedido importado hoje ainda. Importe um pedido em Produção Buffet para acompanhar a posição da produção aqui.</p></div>';
+    } else {
+      pedidosHtml =
+        pedidosAbertos.map(function(p){ return cardPedido(p, '<span class="badge warning">aberto</span>'); }).join('') +
+        pedidosConcluidos.map(function(p){ return cardPedido(p, '<span class="badge good">concluído às ' + fmtTime(p.concluidoEm) + '</span>'); }).join('');
+    }
+    var acompPedidosEl = document.getElementById('acompPedidos');
+    acompPedidosEl.innerHTML = pedidosHtml;
+    acompPedidosEl.querySelectorAll('.acomp-pedido-toggle').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var key = btn.getAttribute('data-pedido-key');
+        var abertoAtual = btn.getAttribute('aria-expanded') === 'true';
+        var novo = !abertoAtual;
+        btn.setAttribute('aria-expanded', novo);
+        state.pedidoAcompAberto[key] = novo;
+        var body = acompPedidosEl.querySelector('[data-pedido-body="' + cssEscape(key) + '"]');
+        if(body) body.hidden = !novo;
+      });
+    });
+
+    // Produção por funcionário (hoje) — quantidade de unidades entregues por categoria
+    var funcTableHtml = renderProducaoFuncionariosHtml(hoje);
+    document.getElementById('acompFuncionarios').innerHTML = funcTableHtml;
+
+    document.getElementById('acompUpdatedAt').textContent = 'atualizado às ' + fmtTime(new Date().toISOString());
+  }
+
+  document.getElementById('refreshAcompBtn').addEventListener('click', renderAcompanhamento);
+
+  /* ---------------- init ---------------- */
+  function initDatePill(){
+    var d = new Date();
+    var dias = ['domingo','segunda-feira','terça-feira','quarta-feira','quinta-feira','sexta-feira','sábado'];
+    var meses = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+    document.getElementById('todayPill').textContent = dias[d.getDay()] + ', ' + d.getDate() + ' ' + meses[d.getMonth()] + '.';
+  }
+
+  function renderAll(){
+    renderLotes();
+    renderPedidoSelect();
+    renderPedidoBoard();
+    renderLog();
+    if(currentTab === '3') renderAcompanhamento();
+  }
+
+  initDatePill();
+  updateSummary();
+
+  function restaurarAba(){
+    try{
+      var savedTab = localStorage.getItem('fluxosalmao_tab');
+      if(savedTab === '2' || savedTab === '3') setTab(savedTab);
+    }catch(e){}
+  }
+
+  var listenersFirebaseIniciados = false;
+  function iniciarListenersFirebase(){
+    if(listenersFirebaseIniciados) return;
+    listenersFirebaseIniciados = true;
+    // Cada nó do banco tem seu próprio listener em tempo real: qualquer tablet/celular
+    // que gravar dados atualiza todos os outros automaticamente, sem precisar recarregar a página.
+    db.ref(LS_LOTES).on('value', function(snap){
+      state.lotes = snap.val() || [];
+      renderAll();
+    }, function(err){ console.error('Erro ao ler lotes:', err); toast('Erro ao ler dados do Firebase'); });
+
+    db.ref(LS_PEDIDOS).on('value', function(snap){
+      state.pedidos = snap.val() || [];
+      // mantém a seleção atual se ela ainda existir; só troca (para o pedido mais recente)
+      // quando não há seleção válida — por exemplo, na primeira carga, ou se o pedido
+      // selecionado sumiu do banco. Assim, um pedido importado de OUTRO tablet também é
+      // selecionado automaticamente aqui quando este tablet ainda não estava olhando nada.
+      var selecaoAindaValida = state.pedidos.some(function(p){ return p.id === state.pedidoAtualId; });
+      if(!selecaoAindaValida){
+        state.pedidoAtualId = state.pedidos.length ? state.pedidos[state.pedidos.length - 1].id : null;
+      }
+      renderAll();
+    }, function(err){ console.error('Erro ao ler pedidos:', err); toast('Erro ao ler dados do Firebase'); });
+
+    db.ref(LS_ENVIOS).on('value', function(snap){
+      state.envios = snap.val() || [];
+      renderAll();
+    }, function(err){ console.error('Erro ao ler envios:', err); toast('Erro ao ler dados do Firebase'); });
+
+    db.ref(LS_FUNCIONARIOS).on('value', function(snap){
+      state.funcionarios = snap.val() || [];
+    }, function(err){ console.error('Erro ao ler funcionários:', err); toast('Erro ao ler dados do Firebase'); });
+  }
+
+  /* ---------------- login / autenticação ---------------- */
+  var loginScreenEl = document.getElementById('loginScreen');
+  var appRootEl = document.getElementById('appRoot');
+  var logoutBtnEl = document.getElementById('logoutBtn');
+  var loginErrorEl = document.getElementById('loginError');
+  var loginFormEl = document.getElementById('loginForm');
+  var loginSubmitBtnEl = document.getElementById('loginSubmitBtn');
+
+  function mensagemErroLogin(err){
+    var codigo = err && err.code;
+    if(codigo === 'auth/invalid-email') return 'E-mail inválido.';
+    if(codigo === 'auth/user-disabled') return 'Este acesso foi desativado.';
+    if(codigo === 'auth/user-not-found' || codigo === 'auth/wrong-password' || codigo === 'auth/invalid-credential' || codigo === 'auth/invalid-login-credentials'){
+      return 'E-mail ou senha incorretos.';
+    }
+    if(codigo === 'auth/too-many-requests') return 'Muitas tentativas seguidas. Aguarde um pouco e tente de novo.';
+    if(codigo === 'auth/network-request-failed') return 'Falha de conexão. Verifique a internet e tente de novo.';
+    return 'Não foi possível entrar. Tente novamente.';
+  }
+
+  if(!firebaseConfigured){
+    document.getElementById('firebaseWarning').hidden = false;
+    appRootEl.hidden = false;
+    renderAll();
+    restaurarAba();
+  } else {
+    if(loginFormEl){
+      loginFormEl.addEventListener('submit', function(e){
+        e.preventDefault();
+        loginErrorEl.hidden = true;
+        var email = document.getElementById('loginEmail').value.trim();
+        var senha = document.getElementById('loginSenha').value;
+        loginSubmitBtnEl.disabled = true;
+        loginSubmitBtnEl.textContent = 'Entrando...';
+        auth.signInWithEmailAndPassword(email, senha).catch(function(err){
+          console.error('Erro ao entrar:', err);
+          loginErrorEl.textContent = mensagemErroLogin(err);
+          loginErrorEl.hidden = false;
+        }).finally(function(){
+          loginSubmitBtnEl.disabled = false;
+          loginSubmitBtnEl.textContent = 'Entrar';
+        });
+      });
+    }
+
+    if(logoutBtnEl){
+      logoutBtnEl.addEventListener('click', function(){
+        auth.signOut();
+      });
+    }
+
+    var primeiroLoginTratado = false;
+    auth.onAuthStateChanged(function(user){
+      if(user){
+        loginScreenEl.hidden = true;
+        appRootEl.hidden = false;
+        logoutBtnEl.hidden = false;
+        iniciarListenersFirebase();
+        if(!primeiroLoginTratado){
+          primeiroLoginTratado = true;
+          restaurarAba();
+        }
+      } else {
+        appRootEl.hidden = true;
+        logoutBtnEl.hidden = true;
+        loginScreenEl.hidden = false;
+        if(loginFormEl) loginFormEl.reset();
+      }
+    });
+  }
+
+})();
+</script>
+</body>
+</html>
