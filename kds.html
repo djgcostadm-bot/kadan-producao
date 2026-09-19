@@ -115,6 +115,26 @@
   .kds-matrix-pct.good{color:var(--good);}
   .kds-matrix-empty{color:var(--ink-faint);}
 
+  /* ---- Pedidos do dia (lado a lado, compactos) ---- */
+  .kds-pedidos-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px;}
+  .kds-pedido-card{background:var(--surface-2);border:1px solid var(--border);border-radius:14px;padding:12px 14px;}
+  .kds-pedido-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;flex-wrap:wrap;}
+  .kds-pedido-head strong{font-family:var(--font-display);font-size:.92rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .kds-pedido-badge{font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.03em;padding:3px 8px;border-radius:999px;white-space:nowrap;}
+  .kds-pedido-badge.warning{background:var(--warning-soft);color:var(--warning);}
+  .kds-pedido-badge.good{background:var(--good-soft);color:var(--good);}
+  .kds-pedido-mini-stats{display:flex;gap:12px;flex-wrap:wrap;padding-bottom:8px;margin-bottom:8px;border-bottom:1px solid var(--border);}
+  .kds-pedido-mini-stats .mini-stat{display:flex;flex-direction:column;gap:0;}
+  .kds-pedido-mini-stats .mini-stat strong{font-family:var(--font-mono);font-size:.92rem;font-weight:700;}
+  .kds-pedido-mini-stats .mini-stat small{font-size:.6rem;color:var(--ink-muted);text-transform:uppercase;letter-spacing:.02em;}
+  .kds-pedido-mini-stats .mini-stat.pct strong{color:var(--teal);}
+  .kds-pedido-mini-stats .mini-stat.pct.good strong{color:var(--good);}
+  .kds-pedido-cats .kds-cat-row{padding:3px 0;gap:6px;}
+  .kds-pedido-cats .kds-cat-name{font-size:.76rem;max-width:36%;}
+  .kds-pedido-cats .kds-cat-bar{height:6px;}
+  .kds-pedido-cats .kds-cat-pct{font-size:.72rem;min-width:38px;}
+  .kds-pedido-cats .kds-cat-qty{display:none;}
+
   /* ---- Funcionários ---- */
   .kds-func-card{border:1px solid var(--border);border-radius:14px;padding:14px 16px;margin-bottom:12px;background:var(--surface-2);}
   .kds-func-card:last-child{margin-bottom:0;}
@@ -171,6 +191,13 @@
       <h2>Categorias por pedido</h2>
     </div>
     <div id="kdsMatriz"></div>
+  </div>
+
+  <div class="kds-card">
+    <div class="kds-card-head">
+      <h2>Pedidos do dia · Sushibar</h2>
+    </div>
+    <div id="kdsPedidos"></div>
   </div>
 
   <div class="kds-grid">
@@ -390,6 +417,38 @@
     el.innerHTML = '<div class="kds-table-wrap"><table class="kds-table"><thead>' + theadHtml + '</thead><tbody>' + tbodyHtml + '</tbody></table></div>';
   }
 
+  // Cartões de "Pedidos do dia", lado a lado e compactos (sem precisar rolar a tela).
+  function kdsPedidoCardHtml(p){
+    var resumo = calcPedidoResumo(p);
+    var badgeHtml = p.concluidoEm
+      ? '<span class="kds-pedido-badge good">concluído</span>'
+      : '<span class="kds-pedido-badge warning">aberto</span>';
+    return '<div class="kds-pedido-card">' +
+      '<div class="kds-pedido-head"><strong>' + escapeHtml(p.nome) + '</strong>' + badgeHtml + '</div>' +
+      '<div class="kds-pedido-mini-stats">' +
+        '<span class="mini-stat"><strong>' + resumo.itensCompletos + '/' + resumo.totalItens + '</strong><small>itens</small></span>' +
+        '<span class="mini-stat"><strong>' + fmtNum(resumo.totalEnviado) + '/' + fmtNum(resumo.totalSolicitado) + '</strong><small>un.</small></span>' +
+        '<span class="mini-stat pct' + (resumo.progressoGeral >= 100 ? ' good' : '') + '"><strong>' + fmtPct(resumo.progressoGeral) + '</strong><small>concluído</small></span>' +
+      '</div>' +
+      '<div class="kds-pedido-cats">' + catProgressHtml(resumo) + '</div>' +
+    '</div>';
+  }
+
+  function renderKdsPedidos(pedidosHoje){
+    var el = document.getElementById('kdsPedidos');
+    if(!pedidosHoje.length){
+      el.innerHTML = '<div class="kds-empty"><div class="icon">🍣</div><p>Nenhum pedido importado hoje ainda.</p></div>';
+      return;
+    }
+    var pedidosAbertos = pedidosHoje.filter(function(p){ return !p.concluidoEm; });
+    var pedidosConcluidos = pedidosHoje.filter(function(p){ return !!p.concluidoEm; });
+    function porCriacaoDesc(a,b){ return new Date(b.criadoEm) - new Date(a.criadoEm); }
+    pedidosAbertos.sort(porCriacaoDesc);
+    pedidosConcluidos.sort(porCriacaoDesc);
+    var cardsHtml = pedidosAbertos.map(kdsPedidoCardHtml).join('') + pedidosConcluidos.map(kdsPedidoCardHtml).join('');
+    el.innerHTML = '<div class="kds-pedidos-grid">' + cardsHtml + '</div>';
+  }
+
   /* ---------------- render ---------------- */
   function renderKDS(){
     var hoje = todayISO();
@@ -405,6 +464,7 @@
     }
 
     renderKdsMatrizCategorias(pedidosHoje);
+    renderKdsPedidos(pedidosHoje);
 
     // Produção por funcionário (hoje)
     var enviosHoje = state.envios.filter(function(e){ return dataLocalISO(new Date(e.horario)) === hoje; });
