@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Kadan - Painel de Produção</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap">
+
+<!-- Firebase (Realtime Database + Authentication anônima) — SDK "compat", sem necessidade de build/bundler -->
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+
+<style>
+  :root{
+    --bg:#0A1210;
+    --surface:#122019;
+    --surface-2:#182A22;
+    --surface-3:#20362B;
+    --ink:#EAF2EE;
+    --ink-muted:#9FB3AB;
+    --ink-faint:#6E8580;
+    --border:#26392F;
+    --accent:#F0895F;
+    --teal:#5CD9B4;
+    --teal-soft:#12352A;
+    --good:#5FC488;
+    --good-soft:#123322;
+    --warning:#E4AC4F;
+    --warning-soft:#3A2E15;
+    --critical:#E37D73;
+    --critical-soft:#3B211E;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px -12px rgba(0,0,0,.6);
+    --font-display:'Manrope', 'Segoe UI', sans-serif;
+    --font-body:'IBM Plex Sans', 'Segoe UI', sans-serif;
+    --font-mono:'IBM Plex Mono', 'Courier New', monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);font-family:var(--font-body);}
+  body{padding:26px 30px 40px;min-height:100vh;}
+  .num{font-family:var(--font-mono);font-variant-numeric:tabular-nums;}
+  h1,h2,h3{font-family:var(--font-display);font-weight:800;letter-spacing:-0.01em;margin:0;}
+
+  /* ---- Header ---- */
+  .kds-header{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:22px;}
+  .kds-brand{display:flex;align-items:center;gap:14px;}
+  .kds-brand-mark{
+    width:52px;height:52px;border-radius:14px;background:linear-gradient(155deg,var(--accent),#c94f2b);
+    display:flex;align-items:center;justify-content:center;font-size:26px;flex-shrink:0;box-shadow:var(--shadow);
+  }
+  .kds-brand h1{font-size:1.5rem;}
+  .kds-brand p{margin:2px 0 0;font-size:.88rem;color:var(--ink-muted);}
+  .kds-status{display:flex;align-items:center;gap:20px;}
+  .kds-live{
+    display:flex;align-items:center;gap:8px;font-family:var(--font-mono);font-size:.85rem;color:var(--ink-muted);
+    background:var(--surface);border:1px solid var(--border);border-radius:999px;padding:8px 16px;
+  }
+  .kds-dot{width:9px;height:9px;border-radius:50%;background:var(--good);flex-shrink:0;animation:kdsPulse 2s ease-in-out infinite;}
+  @keyframes kdsPulse{0%,100%{opacity:1;}50%{opacity:.35;}}
+  .kds-clock{font-family:var(--font-mono);font-size:2.1rem;font-weight:700;line-height:1;text-align:right;}
+  .kds-date{font-size:.82rem;color:var(--ink-muted);text-align:right;margin-top:2px;text-transform:capitalize;}
+
+  .kds-banner{
+    background:var(--warning-soft);border:1px solid var(--warning);color:var(--warning);border-radius:12px;
+    padding:14px 18px;margin-bottom:20px;font-size:.92rem;line-height:1.5;
+  }
+  .kds-banner strong{color:var(--ink);}
+
+  /* ---- Cards & grid ---- */
+  .kds-grid{display:grid;grid-template-columns:1.3fr .9fr;gap:22px;align-items:start;}
+  @media (max-width:980px){.kds-grid{grid-template-columns:1fr;}}
+  .kds-card{
+    background:var(--surface);border:1px solid var(--border);border-radius:20px;
+    padding:22px 22px 24px;box-shadow:var(--shadow);margin-bottom:22px;
+  }
+  .kds-card:last-child{margin-bottom:0;}
+  .kds-card-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:16px;flex-wrap:wrap;}
+  .kds-card-head h2{font-size:1.15rem;}
+  .kds-card-head .hint{font-size:.85rem;color:var(--ink-faint);font-family:var(--font-mono);}
+
+  .kds-kpi-row{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:14px;}
+  @media (max-width:560px){.kds-kpi-row{grid-template-columns:1fr;}}
+  .kds-kpi{background:var(--teal-soft);border-radius:14px;padding:16px 18px;}
+  .kds-kpi .label{font-size:.8rem;color:var(--teal);font-weight:700;display:block;margin-bottom:6px;text-transform:uppercase;letter-spacing:.03em;}
+  .kds-kpi .value{font-family:var(--font-mono);font-size:2rem;font-weight:700;color:var(--ink);}
+  .kds-kpi .value .u{font-size:1rem;color:var(--ink-faint);font-weight:500;margin-left:4px;}
+
+  .kds-cat-panel{background:var(--surface-2);border:1px solid var(--border);border-radius:14px;padding:14px 16px;}
+  .kds-cat-title{
+    font-family:var(--font-display);font-weight:700;font-size:.78rem;text-transform:uppercase;
+    letter-spacing:.05em;color:var(--ink-muted);margin-bottom:10px;
+  }
+  .kds-cat-row{display:flex;align-items:center;gap:10px;padding:6px 0;}
+  .kds-cat-name{flex:0 0 auto;font-size:.98rem;font-weight:600;max-width:34%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .kds-cat-bar{flex:1;height:14px;background:var(--surface-3);border-radius:999px;overflow:hidden;}
+  .kds-cat-fill{height:100%;background:var(--teal);border-radius:999px;transition:width .3s ease;}
+  .kds-cat-fill.good{background:var(--good);}
+  .kds-cat-pct{flex:0 0 auto;font-family:var(--font-mono);font-weight:700;font-size:1rem;min-width:56px;text-align:right;}
+  .kds-cat-qty{flex:0 0 auto;font-family:var(--font-mono);font-size:.82rem;color:var(--ink-muted);min-width:78px;text-align:right;}
+
+  /* ---- Pedido cards ---- */
+  .kds-pedido-card{border:1px solid var(--border);border-radius:16px;padding:16px 18px;margin-bottom:16px;background:var(--surface-2);}
+  .kds-pedido-card:last-child{margin-bottom:0;}
+  .kds-pedido-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;}
+  .kds-pedido-head strong{font-family:var(--font-display);font-size:1.1rem;}
+  .kds-badge{
+    display:inline-flex;align-items:center;gap:7px;font-size:.82rem;font-weight:700;
+    padding:6px 13px;border-radius:999px;margin-left:auto;
+  }
+  .kds-badge.warning{background:var(--warning-soft);color:var(--warning);}
+  .kds-badge.good{background:var(--good-soft);color:var(--good);}
+  .kds-badge::before{content:'';width:7px;height:7px;border-radius:50%;background:currentColor;}
+  .kds-pedido-last{font-size:.85rem;color:var(--ink-muted);margin:0 0 10px;}
+
+  /* ---- Funcionários ---- */
+  .kds-func-card{border:1px solid var(--border);border-radius:14px;padding:14px 16px;margin-bottom:12px;background:var(--surface-2);}
+  .kds-func-card:last-child{margin-bottom:0;}
+  .kds-func-card.total{background:var(--teal-soft);border-color:transparent;}
+  .kds-func-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;}
+  .kds-func-head strong{font-family:var(--font-display);font-size:1.02rem;}
+  .kds-func-total{font-family:var(--font-mono);font-weight:700;font-size:.95rem;color:var(--teal);}
+  .kds-chips{display:flex;flex-wrap:wrap;gap:14px;}
+  .kds-chip{display:flex;flex-direction:column;gap:0;min-width:64px;}
+  .kds-chip .k{font-size:.68rem;color:var(--ink-muted);text-transform:uppercase;letter-spacing:.03em;}
+  .kds-chip .v{font-family:var(--font-mono);font-weight:700;font-size:1rem;}
+
+  /* ---- Lotes de hoje ---- */
+  .kds-lote-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-top:1px solid var(--border);font-size:.92rem;}
+  .kds-lote-row:first-child{border-top:none;}
+  .kds-lote-row .nome{font-weight:700;}
+  .kds-lote-row .rend{font-family:var(--font-mono);font-weight:700;}
+
+  .kds-empty{display:flex;flex-direction:column;align-items:center;gap:10px;padding:34px 20px;text-align:center;color:var(--ink-muted);}
+  .kds-empty .icon{font-size:2rem;}
+  .kds-empty p{margin:0;font-size:1rem;max-width:38ch;}
+</style>
+</head>
+<body>
+
+  <div class="kds-header">
+    <div class="kds-brand">
+      <div class="kds-brand-mark" aria-hidden="true">🐟</div>
+      <div>
+        <h1>Kadan · Painel de Produção</h1>
+        <p>Acompanhamento em tempo real — não requer login</p>
+      </div>
+    </div>
+    <div class="kds-status">
+      <div class="kds-live"><span class="kds-dot" id="kdsDot"></span><span id="kdsLiveText">conectando…</span></div>
+      <div>
+        <div class="kds-clock" id="kdsClock">--:--:--</div>
+        <div class="kds-date" id="kdsDate">—</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="kdsBanner"></div>
+
+  <div class="kds-card">
+    <div class="kds-card-head">
+      <h2>Total do dia · todos os pedidos</h2>
+    </div>
+    <div id="kdsTotalDia"></div>
+  </div>
+
+  <div class="kds-grid">
+    <div>
+      <div class="kds-card">
+        <div class="kds-card-head">
+          <h2>Pedidos do dia · Sushibar</h2>
+        </div>
+        <div id="kdsPedidos"></div>
+      </div>
+    </div>
+    <div>
+      <div class="kds-card">
+        <div class="kds-card-head">
+          <h2>Produção por funcionário (hoje)</h2>
+        </div>
+        <div id="kdsFuncionarios"></div>
+      </div>
+      <div class="kds-card">
+        <div class="kds-card-head">
+          <h2>Lotes de hoje</h2>
+        </div>
+        <div id="kdsLotes"></div>
+      </div>
+    </div>
+  </div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ---------------- Firebase (mesmo projeto do app principal) ---------------- */
+  var firebaseConfig = {
+    apiKey: "AIzaSyDF8tXjLn_YrHnu5hGIHfuz5wJawUj1zZU",
+    authDomain: "kadan-producao.firebaseapp.com",
+    databaseURL: "https://kadan-producao-default-rtdb.firebaseio.com",
+    projectId: "kadan-producao",
+    storageBucket: "kadan-producao.firebasestorage.app",
+    messagingSenderId: "104751109467",
+    appId: "1:104751109467:web:b4409362b66e72db64f67e"
+  };
+  var firebaseConfigured = firebaseConfig.apiKey !== "SUBSTITUA_AQUI" && !!firebaseConfig.databaseURL;
+
+  var state = { lotes: [], pedidos: [], envios: [], funcionarios: [] };
+
+  function setBanner(html){ document.getElementById('kdsBanner').innerHTML = html; }
+  function setLive(text, ok){
+    document.getElementById('kdsLiveText').textContent = text;
+    document.getElementById('kdsDot').style.background = ok ? 'var(--good)' : 'var(--critical)';
+  }
+
+  /* ---------------- helpers (mesma lógica do app principal) ---------------- */
+  function dataLocalISO(d){
+    var m = String(d.getMonth()+1).padStart(2,'0');
+    var day = String(d.getDate()).padStart(2,'0');
+    return d.getFullYear() + '-' + m + '-' + day;
+  }
+  function todayISO(){ return dataLocalISO(new Date()); }
+  function n(v){ v = parseFloat(v); return isNaN(v) ? 0 : v; }
+  function fmtNum(v){ return Math.round(v).toLocaleString('pt-BR'); }
+  function fmtPct(v){ return (Math.round(v*10)/10).toLocaleString('pt-BR') + '%'; }
+  function fmtTime(iso){
+    var d = new Date(iso);
+    return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+  }
+  function escapeHtml(s){
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){
+      return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c];
+    });
+  }
+  function loteRendimento(l){
+    return l.pesoInicial > 0 ? (l.liquido / l.pesoInicial * 100) : 0;
+  }
+  function enviadoTotal(pedidoId, produto){
+    return state.envios.filter(function(e){ return e.pedidoId===pedidoId && e.produto===produto; })
+      .reduce(function(s,e){ return s + e.quantidade; }, 0);
+  }
+  function categoriaDoEnvio(e){
+    var pedido = state.pedidos.find(function(p){ return p.id === e.pedidoId; });
+    if(!pedido) return 'Outros';
+    var item = pedido.itens.find(function(it){ return it.produto === e.produto; });
+    return (item && item.familia) || 'Outros';
+  }
+  function calcPedidoResumo(pedido){
+    var totalSolicitado = 0, totalEnviado = 0, itensCompletos = 0;
+    var grupos = {}, ordemGrupos = [];
+    pedido.itens.forEach(function(it){
+      var fam = it.familia || 'Outros';
+      if(!grupos[fam]){ grupos[fam] = []; ordemGrupos.push(fam); }
+      grupos[fam].push(it);
+    });
+    ordemGrupos.sort(function(a,b){
+      if(a === 'Outros') return 1;
+      if(b === 'Outros') return -1;
+      return 0;
+    });
+    var resumoCategorias = ordemGrupos.map(function(fam){
+      var itensFam = grupos[fam];
+      var famSolicitado = 0, famEnviadoCapped = 0;
+      itensFam.forEach(function(it){
+        var env = enviadoTotal(pedido.id, it.produto);
+        var envCapped = Math.min(env, it.solicitado);
+        totalSolicitado += it.solicitado;
+        totalEnviado += envCapped;
+        famSolicitado += it.solicitado;
+        famEnviadoCapped += envCapped;
+        if(env >= it.solicitado) itensCompletos++;
+      });
+      var famPct = famSolicitado > 0 ? Math.min(famEnviadoCapped / famSolicitado * 100, 100) : 0;
+      return { nome: fam, solicitado: famSolicitado, enviado: famEnviadoCapped, pct: famPct };
+    });
+    var progressoGeral = totalSolicitado > 0 ? (totalEnviado / totalSolicitado * 100) : 0;
+    var progressoItens = pedido.itens.length > 0 ? (itensCompletos / pedido.itens.length * 100) : 0;
+    return {
+      totalItens: pedido.itens.length,
+      totalSolicitado: totalSolicitado,
+      totalEnviado: totalEnviado,
+      itensCompletos: itensCompletos,
+      progressoItens: progressoItens,
+      progressoGeral: progressoGeral,
+      resumoCategorias: resumoCategorias
+    };
+  }
+  function calcResumoAgregado(pedidos){
+    var totalItens = 0, itensCompletos = 0, totalSolicitado = 0, totalEnviado = 0;
+    var categoriasMap = {}, ordemCategorias = [];
+    pedidos.forEach(function(pedido){
+      var r = calcPedidoResumo(pedido);
+      totalItens += r.totalItens;
+      itensCompletos += r.itensCompletos;
+      totalSolicitado += r.totalSolicitado;
+      totalEnviado += r.totalEnviado;
+      r.resumoCategorias.forEach(function(c){
+        if(!categoriasMap[c.nome]){ categoriasMap[c.nome] = { solicitado:0, enviado:0 }; ordemCategorias.push(c.nome); }
+        categoriasMap[c.nome].solicitado += c.solicitado;
+        categoriasMap[c.nome].enviado += c.enviado;
+      });
+    });
+    ordemCategorias.sort(function(a,b){
+      if(a === 'Outros') return 1;
+      if(b === 'Outros') return -1;
+      return 0;
+    });
+    var resumoCategorias = ordemCategorias.map(function(nome){
+      var d = categoriasMap[nome];
+      var pct = d.solicitado > 0 ? Math.min(d.enviado / d.solicitado * 100, 100) : 0;
+      return { nome: nome, solicitado: d.solicitado, enviado: d.enviado, pct: pct };
+    });
+    var progressoGeral = totalSolicitado > 0 ? (totalEnviado / totalSolicitado * 100) : 0;
+    var progressoItens = totalItens > 0 ? (itensCompletos / totalItens * 100) : 0;
+    return {
+      totalItens: totalItens,
+      totalSolicitado: totalSolicitado,
+      totalEnviado: totalEnviado,
+      itensCompletos: itensCompletos,
+      progressoItens: progressoItens,
+      progressoGeral: progressoGeral,
+      resumoCategorias: resumoCategorias
+    };
+  }
+
+  function catProgressHtml(resumo){
+    if(!resumo.resumoCategorias.length) return '<p style="margin:0;color:var(--ink-faint);">Sem itens categorizados.</p>';
+    return resumo.resumoCategorias.map(function(c){
+      var fillClass = c.pct >= 100 ? 'good' : '';
+      return '<div class="kds-cat-row">' +
+        '<span class="kds-cat-name" title="' + escapeHtml(c.nome) + '">' + escapeHtml(c.nome) + '</span>' +
+        '<div class="kds-cat-bar"><div class="kds-cat-fill ' + fillClass + '" style="width:' + Math.min(c.pct,100) + '%"></div></div>' +
+        '<span class="kds-cat-pct">' + fmtPct(c.pct) + '</span>' +
+        '<span class="kds-cat-qty">' + fmtNum(c.enviado) + '/' + fmtNum(c.solicitado) + '</span>' +
+      '</div>';
+    }).join('');
+  }
+
+  function kpiRowHtml(resumo){
+    return '<div class="kds-kpi-row">' +
+      '<div class="kds-kpi"><span class="label">Itens completos</span><span class="value">' + resumo.itensCompletos + '<span class="u">/' + resumo.totalItens + '</span></span></div>' +
+      '<div class="kds-kpi"><span class="label">Unidades enviadas</span><span class="value">' + fmtNum(resumo.totalEnviado) + '<span class="u">/' + fmtNum(resumo.totalSolicitado) + '</span></span></div>' +
+      '<div class="kds-kpi"><span class="label">Progresso geral</span><span class="value">' + fmtPct(resumo.progressoGeral) + '</span></div>' +
+    '</div>';
+  }
+
+  /* ---------------- render ---------------- */
+  function renderKDS(){
+    var hoje = todayISO();
+
+    // Total do dia
+    var pedidosHoje = state.pedidos.filter(function(p){ return dataLocalISO(new Date(p.criadoEm)) === hoje; });
+    var totalDiaEl = document.getElementById('kdsTotalDia');
+    if(!pedidosHoje.length){
+      totalDiaEl.innerHTML = '<div class="kds-empty"><div class="icon">🍣</div><p>Nenhum pedido importado hoje ainda.</p></div>';
+    } else {
+      var agregado = calcResumoAgregado(pedidosHoje);
+      totalDiaEl.innerHTML = kpiRowHtml(agregado) + '<div class="kds-cat-panel"><div class="kds-cat-title">% realizado por categoria</div>' + catProgressHtml(agregado) + '</div>';
+    }
+
+    // Pedidos do dia
+    var pedidosAbertos = pedidosHoje.filter(function(p){ return !p.concluidoEm; });
+    var pedidosConcluidos = pedidosHoje.filter(function(p){ return !!p.concluidoEm; });
+    function porCriacaoDesc(a,b){ return new Date(b.criadoEm) - new Date(a.criadoEm); }
+    pedidosAbertos.sort(porCriacaoDesc);
+    pedidosConcluidos.sort(porCriacaoDesc);
+
+    function cardPedido(p, badgeHtml){
+      var ultimoEnvio = state.envios.filter(function(e){ return e.pedidoId === p.id; })
+        .sort(function(a,b){ return new Date(b.horario) - new Date(a.horario); })[0];
+      var ultimoHtml = ultimoEnvio
+        ? fmtTime(ultimoEnvio.horario) + ' · ' + escapeHtml(ultimoEnvio.produto) + ' · ' + fmtNum(ultimoEnvio.quantidade) + ' un' + (ultimoEnvio.funcionario ? ' · ' + escapeHtml(ultimoEnvio.funcionario) : '')
+        : 'nenhum lançamento ainda';
+      var resumo = calcPedidoResumo(p);
+      return '<div class="kds-pedido-card">' +
+        '<div class="kds-pedido-head"><strong>' + escapeHtml(p.nome) + '</strong>' + badgeHtml + '</div>' +
+        '<p class="kds-pedido-last">último lançamento: ' + ultimoHtml + '</p>' +
+        kpiRowHtml(resumo) +
+        '<div class="kds-cat-panel">' + catProgressHtml(resumo) + '</div>' +
+      '</div>';
+    }
+
+    var pedidosEl = document.getElementById('kdsPedidos');
+    if(!pedidosHoje.length){
+      pedidosEl.innerHTML = '<div class="kds-empty"><div class="icon">🍣</div><p>Nenhum pedido importado hoje ainda.</p></div>';
+    } else {
+      pedidosEl.innerHTML =
+        pedidosAbertos.map(function(p){ return cardPedido(p, '<span class="kds-badge warning">aberto</span>'); }).join('') +
+        pedidosConcluidos.map(function(p){ return cardPedido(p, '<span class="kds-badge good">concluído às ' + fmtTime(p.concluidoEm) + '</span>'); }).join('');
+    }
+
+    // Produção por funcionário (hoje)
+    var enviosHoje = state.envios.filter(function(e){ return dataLocalISO(new Date(e.horario)) === hoje; });
+    var funcEl = document.getElementById('kdsFuncionarios');
+    if(!enviosHoje.length){
+      funcEl.innerHTML = '<div class="kds-empty"><div class="icon">🧑‍🍳</div><p>Nenhum lançamento registrado hoje ainda.</p></div>';
+    } else {
+      var porFuncionario = {}, funcionariosOrdem = [], categoriasSet = {}, categoriasOrdem = [];
+      enviosHoje.forEach(function(e){
+        var nome = (e.funcionario && String(e.funcionario).trim()) || 'Não informado';
+        var cat = categoriaDoEnvio(e);
+        if(!porFuncionario[nome]){ porFuncionario[nome] = { __total: 0 }; funcionariosOrdem.push(nome); }
+        porFuncionario[nome][cat] = (porFuncionario[nome][cat] || 0) + e.quantidade;
+        porFuncionario[nome].__total += e.quantidade;
+        if(!categoriasSet[cat]){ categoriasSet[cat] = true; categoriasOrdem.push(cat); }
+      });
+      categoriasOrdem.sort(function(a,b){ if(a==='Outros') return 1; if(b==='Outros') return -1; return 0; });
+      funcionariosOrdem.sort(function(a,b){ return porFuncionario[b].__total - porFuncionario[a].__total; });
+
+      var totalPorCategoria = {}; categoriasOrdem.forEach(function(c){ totalPorCategoria[c] = 0; });
+      var totalGeral = 0;
+      var cardsHtml = funcionariosOrdem.map(function(nome){
+        var d = porFuncionario[nome];
+        var chips = categoriasOrdem.filter(function(c){ return d[c] > 0; }).map(function(c){
+          totalPorCategoria[c] += d[c];
+          return '<div class="kds-chip"><span class="k">' + escapeHtml(c) + '</span><span class="v">' + fmtNum(d[c]) + '</span></div>';
+        }).join('');
+        totalGeral += d.__total;
+        return '<div class="kds-func-card">' +
+          '<div class="kds-func-head"><strong>' + escapeHtml(nome) + '</strong><span class="kds-func-total">' + fmtNum(d.__total) + ' un</span></div>' +
+          '<div class="kds-chips">' + chips + '</div>' +
+        '</div>';
+      }).join('');
+      var totalChips = categoriasOrdem.filter(function(c){ return totalPorCategoria[c] > 0; }).map(function(c){
+        return '<div class="kds-chip"><span class="k">' + escapeHtml(c) + '</span><span class="v">' + fmtNum(totalPorCategoria[c]) + '</span></div>';
+      }).join('');
+      funcEl.innerHTML = cardsHtml + '<div class="kds-func-card total"><div class="kds-func-head"><strong>Total geral</strong><span class="kds-func-total">' + fmtNum(totalGeral) + ' un</span></div><div class="kds-chips">' + totalChips + '</div></div>';
+    }
+
+    // Lotes de hoje
+    var lotesHoje = state.lotes.filter(function(l){ return l.data === hoje; });
+    var lotesEl = document.getElementById('kdsLotes');
+    if(!lotesHoje.length){
+      lotesEl.innerHTML = '<div class="kds-empty"><div class="icon">🐟</div><p>Nenhum lote registrado hoje ainda.</p></div>';
+    } else {
+      lotesEl.innerHTML = lotesHoje.map(function(l){
+        return '<div class="kds-lote-row"><span class="nome">' + escapeHtml(l.lote) + '</span><span class="rend num">' + fmtPct(loteRendimento(l)) + '</span></div>';
+      }).join('');
+    }
+  }
+
+  /* ---------------- relógio ---------------- */
+  function tickClock(){
+    var d = new Date();
+    document.getElementById('kdsClock').textContent =
+      String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0') + ':' + String(d.getSeconds()).padStart(2,'0');
+    var dias = ['domingo','segunda-feira','terça-feira','quarta-feira','quinta-feira','sexta-feira','sábado'];
+    var meses = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+    document.getElementById('kdsDate').textContent = dias[d.getDay()] + ', ' + d.getDate() + ' ' + meses[d.getMonth()] + '.';
+  }
+  tickClock();
+  setInterval(tickClock, 1000);
+  // Recalcula os cards à meia-noite (troca de "hoje") mesmo sem nenhum dado novo chegar.
+  setInterval(renderKDS, 60000);
+
+  /* ---------------- conexão ---------------- */
+  if(!firebaseConfigured){
+    setLive('Firebase não configurado', false);
+    setBanner('<div class="kds-banner"><strong>Firebase não configurado.</strong> Configure o <code>firebaseConfig</code> no arquivo kds.html (mesmos dados usados no index.html) para este painel funcionar.</div>');
+    renderKDS();
+  } else {
+    try{
+      firebase.initializeApp(firebaseConfig);
+      var db = firebase.database();
+      var auth = firebase.auth();
+    }catch(e){
+      setLive('Erro ao iniciar Firebase', false);
+      setBanner('<div class="kds-banner"><strong>Erro ao iniciar o Firebase:</strong> ' + escapeHtml(e.message || String(e)) + '</div>');
+    }
+    if(auth){
+      setLive('conectando…', false);
+      auth.signInAnonymously().then(function(){
+        setLive('ao vivo', true);
+        setBanner('');
+        iniciarListeners();
+      }).catch(function(err){
+        setLive('não foi possível conectar', false);
+        setBanner(
+          '<div class="kds-banner"><strong>Não foi possível conectar ao Firebase para exibir os dados sem login.</strong><br>' +
+          'Ative o método de login "Anônimo" no Firebase Console (Authentication → Sign-in method → Anonymous) e recarregue esta página.<br>' +
+          '<span style="color:var(--ink-faint);font-family:var(--font-mono);font-size:.78rem;">Detalhe técnico: ' + escapeHtml(err.code || '') + ' ' + escapeHtml(err.message || '') + '</span></div>'
+        );
+      });
+    }
+  }
+
+  function iniciarListeners(){
+    db.ref('lotes').on('value', function(snap){ state.lotes = snap.val() || []; renderKDS(); });
+    db.ref('pedidos').on('value', function(snap){ state.pedidos = snap.val() || []; renderKDS(); });
+    db.ref('envios').on('value', function(snap){ state.envios = snap.val() || []; renderKDS(); });
+    db.ref('funcionarios').on('value', function(snap){ state.funcionarios = snap.val() || []; renderKDS(); });
+  }
+
+})();
+</script>
+</body>
+</html>

@@ -476,6 +476,7 @@
     </div>
     <div class="top-right">
       <div class="today-pill" id="todayPill">—</div>
+      <a class="btn btn-outline btn-xs" id="kdsLink" href="kds.html" target="_blank" rel="noopener" hidden>📺 Painel de produção</a>
       <button class="btn btn-danger btn-xs" id="resetBtn" hidden>Resetar</button>
       <button class="btn btn-outline btn-xs" id="logoutBtn" hidden>Sair</button>
     </div>
@@ -1924,6 +1925,7 @@
   var appRootEl = document.getElementById('appRoot');
   var logoutBtnEl = document.getElementById('logoutBtn');
   var resetBtnEl = document.getElementById('resetBtn');
+  var kdsLinkEl = document.getElementById('kdsLink');
   var loginErrorEl = document.getElementById('loginError');
   var loginFormEl = document.getElementById('loginForm');
   var loginSubmitBtnEl = document.getElementById('loginSubmitBtn');
@@ -2005,6 +2007,7 @@
     document.getElementById('firebaseWarning').hidden = false;
     appRootEl.hidden = false;
     if(resetBtnEl) resetBtnEl.hidden = false;
+    if(kdsLinkEl) kdsLinkEl.hidden = false;
     renderAll();
     restaurarAba();
   } else {
@@ -2040,6 +2043,7 @@
         appRootEl.hidden = false;
         logoutBtnEl.hidden = false;
         if(resetBtnEl) resetBtnEl.hidden = false;
+        if(kdsLinkEl) kdsLinkEl.hidden = false;
         iniciarListenersFirebase();
         if(!primeiroLoginTratado){
           primeiroLoginTratado = true;
@@ -2049,6 +2053,7 @@
         appRootEl.hidden = true;
         logoutBtnEl.hidden = true;
         if(resetBtnEl) resetBtnEl.hidden = true;
+        if(kdsLinkEl) kdsLinkEl.hidden = true;
         loginScreenEl.hidden = false;
         if(loginFormEl) loginFormEl.reset();
       }
