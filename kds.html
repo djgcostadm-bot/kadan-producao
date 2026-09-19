@@ -114,6 +114,9 @@
   .kds-matrix-pct{font-family:var(--font-mono);font-weight:700;color:var(--ink-muted);}
   .kds-matrix-pct.good{color:var(--good);}
   .kds-matrix-empty{color:var(--ink-faint);}
+  .kds-matrix-total-col{background:var(--surface-2);}
+  .kds-table thead th.kds-matrix-total-col{color:var(--teal);}
+  .kds-table-total-row td{font-weight:700;background:var(--surface-2);}
 
   /* ---- Pedidos do dia (lado a lado, compactos) ---- */
   .kds-pedidos-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px;}
@@ -188,13 +191,6 @@
 
   <div class="kds-card">
     <div class="kds-card-head">
-      <h2>Categorias por pedido</h2>
-    </div>
-    <div id="kdsMatriz"></div>
-  </div>
-
-  <div class="kds-card">
-    <div class="kds-card-head">
       <h2>Pedidos do dia · Sushibar</h2>
     </div>
     <div id="kdsPedidos"></div>
@@ -209,7 +205,7 @@
     </div>
     <div class="kds-card">
       <div class="kds-card-head">
-        <h2>Lotes de hoje</h2>
+        <h2>Abertura dos peixes</h2>
       </div>
       <div id="kdsLotes"></div>
     </div>
@@ -362,20 +358,12 @@
     }).join('');
   }
 
-  function kpiRowHtml(resumo){
-    return '<div class="kds-kpi-row">' +
-      '<div class="kds-kpi"><span class="label">Itens completos</span><span class="value">' + resumo.itensCompletos + '<span class="u">/' + resumo.totalItens + '</span></span></div>' +
-      '<div class="kds-kpi"><span class="label">Unidades enviadas</span><span class="value">' + fmtNum(resumo.totalEnviado) + '<span class="u">/' + fmtNum(resumo.totalSolicitado) + '</span></span></div>' +
-      '<div class="kds-kpi"><span class="label">Progresso geral</span><span class="value">' + fmtPct(resumo.progressoGeral) + '</span></div>' +
-    '</div>';
-  }
-
-  // Tabela: categorias nas linhas, um pedido por coluna — cada célula mostra
-  // enviado/solicitado e o % de realização daquela categoria naquele pedido.
-  function renderKdsMatrizCategorias(pedidosHoje){
-    var el = document.getElementById('kdsMatriz');
+  // Tabela: categorias nas linhas, um pedido por coluna (com status aberto/concluído) e,
+  // na última coluna, o total agregado daquela categoria somando todos os pedidos do dia.
+  function renderKdsTotalDia(pedidosHoje){
+    var el = document.getElementById('kdsTotalDia');
     if(!pedidosHoje.length){
-      el.innerHTML = '<div class="kds-empty"><div class="icon">📋</div><p>Nenhum pedido importado hoje ainda.</p></div>';
+      el.innerHTML = '<div class="kds-empty"><div class="icon">🍣</div><p>Nenhum pedido importado hoje ainda.</p></div>';
       return;
     }
 
@@ -397,12 +385,16 @@
     });
     categoriasOrdem.sort(function(a,b){ if(a==='Outros') return 1; if(b==='Outros') return -1; return 0; });
 
+    var agregado = calcResumoAgregado(pedidosHoje);
+    var totalPorCategoria = {};
+    agregado.resumoCategorias.forEach(function(c){ totalPorCategoria[c.nome] = c; });
+
     var theadHtml = '<tr><th>Categoria</th>' + pedidosOrdenados.map(function(p){
       var statusHtml = p.concluidoEm
         ? '<span class="kds-matrix-status good">concluído</span>'
         : '<span class="kds-matrix-status warning">aberto</span>';
       return '<th>' + escapeHtml(p.nome) + statusHtml + '</th>';
-    }).join('') + '</tr>';
+    }).join('') + '<th class="kds-matrix-total-col">Total</th></tr>';
 
     var tbodyHtml = categoriasOrdem.map(function(cat){
       var cells = pedidosOrdenados.map(function(p){
@@ -411,10 +403,80 @@
         var pctClass = d.pct >= 100 ? 'good' : '';
         return '<td><span class="kds-matrix-frac">' + fmtNum(d.enviado) + '/' + fmtNum(d.solicitado) + '</span><span class="kds-matrix-pct ' + pctClass + '">' + fmtPct(d.pct) + '</span></td>';
       }).join('');
-      return '<tr><td class="kds-matrix-cat">' + escapeHtml(cat) + '</td>' + cells + '</tr>';
+      var t = totalPorCategoria[cat];
+      var tPctClass = t && t.pct >= 100 ? 'good' : '';
+      var totalCell = t
+        ? '<td class="kds-matrix-total-col"><span class="kds-matrix-frac">' + fmtNum(t.enviado) + '/' + fmtNum(t.solicitado) + '</span><span class="kds-matrix-pct ' + tPctClass + '">' + fmtPct(t.pct) + '</span></td>'
+        : '<td class="kds-matrix-empty kds-matrix-total-col">—</td>';
+      return '<tr><td class="kds-matrix-cat">' + escapeHtml(cat) + '</td>' + cells + totalCell + '</tr>';
     }).join('');
 
     el.innerHTML = '<div class="kds-table-wrap"><table class="kds-table"><thead>' + theadHtml + '</thead><tbody>' + tbodyHtml + '</tbody></table></div>';
+  }
+
+  // "Abertura dos peixes": tabela com os lotes do dia e seus detalhes de aproveitamento.
+  function renderKdsLotes(lotesHoje){
+    var el = document.getElementById('kdsLotes');
+    if(!lotesHoje.length){
+      el.innerHTML = '<div class="kds-empty"><div class="icon">🐟</div><p>Nenhum lote registrado hoje ainda.</p></div>';
+      return;
+    }
+    var theadHtml = '<tr><th>Lote</th><th>Peso inicial</th><th>Lombo</th><th>Barriga</th><th>Peso líquido</th><th>Aproveitamento</th></tr>';
+    var tbodyHtml = lotesHoje.map(function(l){
+      var rend = loteRendimento(l);
+      var pctClass = rend >= 100 ? 'good' : '';
+      return '<tr>' +
+        '<td class="kds-matrix-cat">' + escapeHtml(l.lote) + '</td>' +
+        '<td>' + fmtNum(l.pesoInicial) + ' g</td>' +
+        '<td>' + fmtNum(l.lombo) + ' g</td>' +
+        '<td>' + fmtNum(l.barriga) + ' g</td>' +
+        '<td>' + fmtNum(l.liquido) + ' g</td>' +
+        '<td><span class="kds-matrix-pct ' + pctClass + '">' + fmtPct(rend) + '</span></td>' +
+      '</tr>';
+    }).join('');
+    el.innerHTML = '<div class="kds-table-wrap"><table class="kds-table"><thead>' + theadHtml + '</thead><tbody>' + tbodyHtml + '</tbody></table></div>';
+  }
+
+  // Produção por funcionário, resumida em tabela: funcionários nas linhas, categorias
+  // nas colunas, total por funcionário na última coluna e uma linha de total geral.
+  function renderKdsFuncionarios(enviosHoje){
+    var el = document.getElementById('kdsFuncionarios');
+    if(!enviosHoje.length){
+      el.innerHTML = '<div class="kds-empty"><div class="icon">🧑‍🍳</div><p>Nenhum lançamento registrado hoje ainda.</p></div>';
+      return;
+    }
+    var porFuncionario = {}, funcionariosOrdem = [], categoriasSet = {}, categoriasOrdem = [];
+    enviosHoje.forEach(function(e){
+      var nome = (e.funcionario && String(e.funcionario).trim()) || 'Não informado';
+      var cat = categoriaDoEnvio(e);
+      if(!porFuncionario[nome]){ porFuncionario[nome] = { __total: 0 }; funcionariosOrdem.push(nome); }
+      porFuncionario[nome][cat] = (porFuncionario[nome][cat] || 0) + e.quantidade;
+      porFuncionario[nome].__total += e.quantidade;
+      if(!categoriasSet[cat]){ categoriasSet[cat] = true; categoriasOrdem.push(cat); }
+    });
+    categoriasOrdem.sort(function(a,b){ if(a==='Outros') return 1; if(b==='Outros') return -1; return 0; });
+    funcionariosOrdem.sort(function(a,b){ return porFuncionario[b].__total - porFuncionario[a].__total; });
+
+    var totalPorCategoria = {}; categoriasOrdem.forEach(function(c){ totalPorCategoria[c] = 0; });
+    var totalGeral = 0;
+
+    var linhasHtml = funcionariosOrdem.map(function(nome){
+      var d = porFuncionario[nome];
+      totalGeral += d.__total;
+      var cells = categoriasOrdem.map(function(c){
+        var v = d[c] || 0;
+        totalPorCategoria[c] += v;
+        return '<td>' + (v > 0 ? fmtNum(v) : '<span class="kds-matrix-empty">—</span>') + '</td>';
+      }).join('');
+      return '<tr><td class="kds-matrix-cat">' + escapeHtml(nome) + '</td>' + cells + '<td class="kds-matrix-total-col">' + fmtNum(d.__total) + '</td></tr>';
+    }).join('');
+
+    var totalCells = categoriasOrdem.map(function(c){ return '<td>' + fmtNum(totalPorCategoria[c]) + '</td>'; }).join('');
+    var totalRowHtml = '<tr class="kds-table-total-row"><td>Total geral</td>' + totalCells + '<td class="kds-matrix-total-col">' + fmtNum(totalGeral) + '</td></tr>';
+
+    var theadHtml = '<tr><th>Funcionário</th>' + categoriasOrdem.map(function(c){ return '<th>' + escapeHtml(c) + '</th>'; }).join('') + '<th class="kds-matrix-total-col">Total</th></tr>';
+
+    el.innerHTML = '<div class="kds-table-wrap"><table class="kds-table"><thead>' + theadHtml + '</thead><tbody>' + linhasHtml + totalRowHtml + '</tbody></table></div>';
   }
 
   // Cartões de "Pedidos do dia", lado a lado e compactos (sem precisar rolar a tela).
@@ -453,68 +515,15 @@
   function renderKDS(){
     var hoje = todayISO();
 
-    // Total do dia
     var pedidosHoje = state.pedidos.filter(function(p){ return dataLocalISO(new Date(p.criadoEm)) === hoje; });
-    var totalDiaEl = document.getElementById('kdsTotalDia');
-    if(!pedidosHoje.length){
-      totalDiaEl.innerHTML = '<div class="kds-empty"><div class="icon">🍣</div><p>Nenhum pedido importado hoje ainda.</p></div>';
-    } else {
-      var agregado = calcResumoAgregado(pedidosHoje);
-      totalDiaEl.innerHTML = kpiRowHtml(agregado) + '<div class="kds-cat-panel"><div class="kds-cat-title">% realizado por categoria</div>' + catProgressHtml(agregado) + '</div>';
-    }
-
-    renderKdsMatrizCategorias(pedidosHoje);
+    renderKdsTotalDia(pedidosHoje);
     renderKdsPedidos(pedidosHoje);
 
-    // Produção por funcionário (hoje)
     var enviosHoje = state.envios.filter(function(e){ return dataLocalISO(new Date(e.horario)) === hoje; });
-    var funcEl = document.getElementById('kdsFuncionarios');
-    if(!enviosHoje.length){
-      funcEl.innerHTML = '<div class="kds-empty"><div class="icon">🧑‍🍳</div><p>Nenhum lançamento registrado hoje ainda.</p></div>';
-    } else {
-      var porFuncionario = {}, funcionariosOrdem = [], categoriasSet = {}, categoriasOrdem = [];
-      enviosHoje.forEach(function(e){
-        var nome = (e.funcionario && String(e.funcionario).trim()) || 'Não informado';
-        var cat = categoriaDoEnvio(e);
-        if(!porFuncionario[nome]){ porFuncionario[nome] = { __total: 0 }; funcionariosOrdem.push(nome); }
-        porFuncionario[nome][cat] = (porFuncionario[nome][cat] || 0) + e.quantidade;
-        porFuncionario[nome].__total += e.quantidade;
-        if(!categoriasSet[cat]){ categoriasSet[cat] = true; categoriasOrdem.push(cat); }
-      });
-      categoriasOrdem.sort(function(a,b){ if(a==='Outros') return 1; if(b==='Outros') return -1; return 0; });
-      funcionariosOrdem.sort(function(a,b){ return porFuncionario[b].__total - porFuncionario[a].__total; });
+    renderKdsFuncionarios(enviosHoje);
 
-      var totalPorCategoria = {}; categoriasOrdem.forEach(function(c){ totalPorCategoria[c] = 0; });
-      var totalGeral = 0;
-      var cardsHtml = funcionariosOrdem.map(function(nome){
-        var d = porFuncionario[nome];
-        var chips = categoriasOrdem.filter(function(c){ return d[c] > 0; }).map(function(c){
-          totalPorCategoria[c] += d[c];
-          return '<div class="kds-chip"><span class="k">' + escapeHtml(c) + '</span><span class="v">' + fmtNum(d[c]) + '</span></div>';
-        }).join('');
-        totalGeral += d.__total;
-        return '<div class="kds-func-card">' +
-          '<div class="kds-func-head"><strong>' + escapeHtml(nome) + '</strong><span class="kds-func-total">' + fmtNum(d.__total) + ' un</span></div>' +
-          '<div class="kds-chips">' + chips + '</div>' +
-        '</div>';
-      }).join('');
-      var totalChips = categoriasOrdem.filter(function(c){ return totalPorCategoria[c] > 0; }).map(function(c){
-        return '<div class="kds-chip"><span class="k">' + escapeHtml(c) + '</span><span class="v">' + fmtNum(totalPorCategoria[c]) + '</span></div>';
-      }).join('');
-      var totalCardHtml = '<div class="kds-func-card total"><div class="kds-func-head"><strong>Total geral por categoria</strong><span class="kds-func-total">' + fmtNum(totalGeral) + ' un</span></div><div class="kds-chips">' + totalChips + '</div></div>';
-      funcEl.innerHTML = totalCardHtml + cardsHtml;
-    }
-
-    // Lotes de hoje
     var lotesHoje = state.lotes.filter(function(l){ return l.data === hoje; });
-    var lotesEl = document.getElementById('kdsLotes');
-    if(!lotesHoje.length){
-      lotesEl.innerHTML = '<div class="kds-empty"><div class="icon">🐟</div><p>Nenhum lote registrado hoje ainda.</p></div>';
-    } else {
-      lotesEl.innerHTML = lotesHoje.map(function(l){
-        return '<div class="kds-lote-row"><span class="nome">' + escapeHtml(l.lote) + '</span><span class="rend num">' + fmtPct(loteRendimento(l)) + '</span></div>';
-      }).join('');
-    }
+    renderKdsLotes(lotesHoje);
   }
 
   /* ---------------- relógio ---------------- */
