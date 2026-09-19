@@ -69,7 +69,7 @@
   .kds-banner strong{color:var(--ink);}
 
   /* ---- Cards & grid ---- */
-  .kds-grid{display:grid;grid-template-columns:1.3fr .9fr;gap:22px;align-items:start;}
+  .kds-grid{display:grid;grid-template-columns:1fr 1fr;gap:22px;align-items:start;}
   @media (max-width:980px){.kds-grid{grid-template-columns:1fr;}}
   .kds-card{
     background:var(--surface);border:1px solid var(--border);border-radius:20px;
@@ -100,19 +100,20 @@
   .kds-cat-pct{flex:0 0 auto;font-family:var(--font-mono);font-weight:700;font-size:1rem;min-width:56px;text-align:right;}
   .kds-cat-qty{flex:0 0 auto;font-family:var(--font-mono);font-size:.82rem;color:var(--ink-muted);min-width:78px;text-align:right;}
 
-  /* ---- Pedido cards ---- */
-  .kds-pedido-card{border:1px solid var(--border);border-radius:16px;padding:16px 18px;margin-bottom:16px;background:var(--surface-2);}
-  .kds-pedido-card:last-child{margin-bottom:0;}
-  .kds-pedido-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;}
-  .kds-pedido-head strong{font-family:var(--font-display);font-size:1.1rem;}
-  .kds-badge{
-    display:inline-flex;align-items:center;gap:7px;font-size:.82rem;font-weight:700;
-    padding:6px 13px;border-radius:999px;margin-left:auto;
-  }
-  .kds-badge.warning{background:var(--warning-soft);color:var(--warning);}
-  .kds-badge.good{background:var(--good-soft);color:var(--good);}
-  .kds-badge::before{content:'';width:7px;height:7px;border-radius:50%;background:currentColor;}
-  .kds-pedido-last{font-size:.85rem;color:var(--ink-muted);margin:0 0 10px;}
+  /* ---- Categorias por pedido (matriz) ---- */
+  .kds-table-wrap{overflow-x:auto;}
+  .kds-table{width:100%;border-collapse:collapse;font-size:.92rem;min-width:480px;}
+  .kds-table th, .kds-table td{padding:10px 16px 10px 0;border-bottom:1px solid var(--border);text-align:left;white-space:nowrap;}
+  .kds-table thead th{font-family:var(--font-display);font-weight:700;font-size:.92rem;color:var(--ink);border-bottom:2px solid var(--border);}
+  .kds-table tbody tr:last-child td{border-bottom:none;}
+  .kds-matrix-cat{font-family:var(--font-display);font-weight:700;color:var(--ink);}
+  .kds-matrix-status{display:block;font-size:.66rem;font-weight:700;text-transform:uppercase;letter-spacing:.03em;margin-top:3px;}
+  .kds-matrix-status.warning{color:var(--warning);}
+  .kds-matrix-status.good{color:var(--good);}
+  .kds-matrix-frac{font-family:var(--font-mono);font-weight:600;margin-right:10px;}
+  .kds-matrix-pct{font-family:var(--font-mono);font-weight:700;color:var(--ink-muted);}
+  .kds-matrix-pct.good{color:var(--good);}
+  .kds-matrix-empty{color:var(--ink-faint);}
 
   /* ---- Funcionários ---- */
   .kds-func-card{border:1px solid var(--border);border-radius:14px;padding:14px 16px;margin-bottom:12px;background:var(--surface-2);}
@@ -165,28 +166,25 @@
     <div id="kdsTotalDia"></div>
   </div>
 
-  <div class="kds-grid">
-    <div>
-      <div class="kds-card">
-        <div class="kds-card-head">
-          <h2>Pedidos do dia · Sushibar</h2>
-        </div>
-        <div id="kdsPedidos"></div>
-      </div>
+  <div class="kds-card">
+    <div class="kds-card-head">
+      <h2>Categorias por pedido</h2>
     </div>
-    <div>
-      <div class="kds-card">
-        <div class="kds-card-head">
-          <h2>Produção por funcionário (hoje)</h2>
-        </div>
-        <div id="kdsFuncionarios"></div>
+    <div id="kdsMatriz"></div>
+  </div>
+
+  <div class="kds-grid">
+    <div class="kds-card">
+      <div class="kds-card-head">
+        <h2>Produção por funcionário (hoje)</h2>
       </div>
-      <div class="kds-card">
-        <div class="kds-card-head">
-          <h2>Lotes de hoje</h2>
-        </div>
-        <div id="kdsLotes"></div>
+      <div id="kdsFuncionarios"></div>
+    </div>
+    <div class="kds-card">
+      <div class="kds-card-head">
+        <h2>Lotes de hoje</h2>
       </div>
+      <div id="kdsLotes"></div>
     </div>
   </div>
 
@@ -345,6 +343,53 @@
     '</div>';
   }
 
+  // Tabela: categorias nas linhas, um pedido por coluna — cada célula mostra
+  // enviado/solicitado e o % de realização daquela categoria naquele pedido.
+  function renderKdsMatrizCategorias(pedidosHoje){
+    var el = document.getElementById('kdsMatriz');
+    if(!pedidosHoje.length){
+      el.innerHTML = '<div class="kds-empty"><div class="icon">📋</div><p>Nenhum pedido importado hoje ainda.</p></div>';
+      return;
+    }
+
+    var pedidosOrdenados = pedidosHoje.slice().sort(function(a,b){
+      var aAberto = !a.concluidoEm, bAberto = !b.concluidoEm;
+      if(aAberto !== bAberto) return aAberto ? -1 : 1;
+      return new Date(b.criadoEm) - new Date(a.criadoEm);
+    });
+
+    var categoriasOrdem = [], categoriasSet = {};
+    var porPedidoCategoria = {};
+    pedidosOrdenados.forEach(function(p){
+      var resumo = calcPedidoResumo(p);
+      porPedidoCategoria[p.id] = {};
+      resumo.resumoCategorias.forEach(function(c){
+        porPedidoCategoria[p.id][c.nome] = c;
+        if(!categoriasSet[c.nome]){ categoriasSet[c.nome] = true; categoriasOrdem.push(c.nome); }
+      });
+    });
+    categoriasOrdem.sort(function(a,b){ if(a==='Outros') return 1; if(b==='Outros') return -1; return 0; });
+
+    var theadHtml = '<tr><th>Categoria</th>' + pedidosOrdenados.map(function(p){
+      var statusHtml = p.concluidoEm
+        ? '<span class="kds-matrix-status good">concluído</span>'
+        : '<span class="kds-matrix-status warning">aberto</span>';
+      return '<th>' + escapeHtml(p.nome) + statusHtml + '</th>';
+    }).join('') + '</tr>';
+
+    var tbodyHtml = categoriasOrdem.map(function(cat){
+      var cells = pedidosOrdenados.map(function(p){
+        var d = porPedidoCategoria[p.id][cat];
+        if(!d) return '<td class="kds-matrix-empty">—</td>';
+        var pctClass = d.pct >= 100 ? 'good' : '';
+        return '<td><span class="kds-matrix-frac">' + fmtNum(d.enviado) + '/' + fmtNum(d.solicitado) + '</span><span class="kds-matrix-pct ' + pctClass + '">' + fmtPct(d.pct) + '</span></td>';
+      }).join('');
+      return '<tr><td class="kds-matrix-cat">' + escapeHtml(cat) + '</td>' + cells + '</tr>';
+    }).join('');
+
+    el.innerHTML = '<div class="kds-table-wrap"><table class="kds-table"><thead>' + theadHtml + '</thead><tbody>' + tbodyHtml + '</tbody></table></div>';
+  }
+
   /* ---------------- render ---------------- */
   function renderKDS(){
     var hoje = todayISO();
@@ -359,36 +404,7 @@
       totalDiaEl.innerHTML = kpiRowHtml(agregado) + '<div class="kds-cat-panel"><div class="kds-cat-title">% realizado por categoria</div>' + catProgressHtml(agregado) + '</div>';
     }
 
-    // Pedidos do dia
-    var pedidosAbertos = pedidosHoje.filter(function(p){ return !p.concluidoEm; });
-    var pedidosConcluidos = pedidosHoje.filter(function(p){ return !!p.concluidoEm; });
-    function porCriacaoDesc(a,b){ return new Date(b.criadoEm) - new Date(a.criadoEm); }
-    pedidosAbertos.sort(porCriacaoDesc);
-    pedidosConcluidos.sort(porCriacaoDesc);
-
-    function cardPedido(p, badgeHtml){
-      var ultimoEnvio = state.envios.filter(function(e){ return e.pedidoId === p.id; })
-        .sort(function(a,b){ return new Date(b.horario) - new Date(a.horario); })[0];
-      var ultimoHtml = ultimoEnvio
-        ? fmtTime(ultimoEnvio.horario) + ' · ' + escapeHtml(ultimoEnvio.produto) + ' · ' + fmtNum(ultimoEnvio.quantidade) + ' un' + (ultimoEnvio.funcionario ? ' · ' + escapeHtml(ultimoEnvio.funcionario) : '')
-        : 'nenhum lançamento ainda';
-      var resumo = calcPedidoResumo(p);
-      return '<div class="kds-pedido-card">' +
-        '<div class="kds-pedido-head"><strong>' + escapeHtml(p.nome) + '</strong>' + badgeHtml + '</div>' +
-        '<p class="kds-pedido-last">último lançamento: ' + ultimoHtml + '</p>' +
-        kpiRowHtml(resumo) +
-        '<div class="kds-cat-panel">' + catProgressHtml(resumo) + '</div>' +
-      '</div>';
-    }
-
-    var pedidosEl = document.getElementById('kdsPedidos');
-    if(!pedidosHoje.length){
-      pedidosEl.innerHTML = '<div class="kds-empty"><div class="icon">🍣</div><p>Nenhum pedido importado hoje ainda.</p></div>';
-    } else {
-      pedidosEl.innerHTML =
-        pedidosAbertos.map(function(p){ return cardPedido(p, '<span class="kds-badge warning">aberto</span>'); }).join('') +
-        pedidosConcluidos.map(function(p){ return cardPedido(p, '<span class="kds-badge good">concluído às ' + fmtTime(p.concluidoEm) + '</span>'); }).join('');
-    }
+    renderKdsMatrizCategorias(pedidosHoje);
 
     // Produção por funcionário (hoje)
     var enviosHoje = state.envios.filter(function(e){ return dataLocalISO(new Date(e.horario)) === hoje; });
@@ -425,7 +441,8 @@
       var totalChips = categoriasOrdem.filter(function(c){ return totalPorCategoria[c] > 0; }).map(function(c){
         return '<div class="kds-chip"><span class="k">' + escapeHtml(c) + '</span><span class="v">' + fmtNum(totalPorCategoria[c]) + '</span></div>';
       }).join('');
-      funcEl.innerHTML = cardsHtml + '<div class="kds-func-card total"><div class="kds-func-head"><strong>Total geral</strong><span class="kds-func-total">' + fmtNum(totalGeral) + ' un</span></div><div class="kds-chips">' + totalChips + '</div></div>';
+      var totalCardHtml = '<div class="kds-func-card total"><div class="kds-func-head"><strong>Total geral por categoria</strong><span class="kds-func-total">' + fmtNum(totalGeral) + ' un</span></div><div class="kds-chips">' + totalChips + '</div></div>';
+      funcEl.innerHTML = totalCardHtml + cardsHtml;
     }
 
     // Lotes de hoje
