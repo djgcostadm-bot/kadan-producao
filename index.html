@@ -364,6 +364,7 @@
     letter-spacing:0;color:var(--ink-muted);white-space:nowrap;
   }
   .familia-items{display:flex;flex-direction:column;}
+  .familia-items[hidden]{display:none;}
   .item-row{padding:8px 10px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:6px;}
   .item-row:first-child{border-top:none;}
   .item-row.zero{background:var(--critical-soft);}
@@ -496,11 +497,9 @@
 
   <!-- ===================== MÓDULO 1 ===================== -->
   <section class="view" id="view1" role="tabpanel" aria-labelledby="tabBtn1">
-    <div class="cols">
-
       <div class="card">
         <div class="card-head">
-          <h2 id="formTitle">Registrar lote de salmão</h2>
+          <h2 id="formTitle">Registro de abertura de lâmina</h2>
           <span class="hint">pesos em gramas (g) · produzido em unidades (un)</span>
         </div>
         <form id="loteForm">
@@ -592,47 +591,6 @@
           </div>
         </form>
       </div>
-
-      <div class="card">
-        <div class="card-head"><h2>Resumo do lote</h2></div>
-
-        <div class="stat-row">
-          <div class="stat">
-            <span class="label">Peso inicial</span>
-            <span class="value num" id="sPesoInicial">0<span class="u">g</span></span>
-          </div>
-          <div class="stat">
-            <span class="label">Peso líquido (Lombo+Barriga)</span>
-            <span class="value num" id="sLiquido">0<span class="u">g</span></span>
-          </div>
-        </div>
-
-        <div class="check-row">
-          <span class="k">Total de perdas (Descarte+Apara+Pele)</span>
-          <span class="v num" id="sPerdas">0 g</span>
-        </div>
-        <div class="check-row">
-          <span class="k">Peso inicial esperado (líquido+perdas)</span>
-          <span class="v num" id="sPesoInicialEsperado">0 g</span>
-        </div>
-        <div class="check-row">
-          <span class="k">Conferência de pesagem</span>
-          <span id="sConferencia"><span class="badge neutral">sem dados</span></span>
-        </div>
-        <div class="check-row" style="border-bottom:1px solid var(--border);margin-bottom:14px;">
-          <span class="k">Total produzido</span>
-          <span class="v num" id="sProduzido">0 un</span>
-        </div>
-
-        <div class="meter" style="margin-bottom:0;">
-          <div class="top-row">
-            <span class="lab">Rendimento sobre peso inicial</span>
-            <span class="pct num" id="sRendimentoPct">0%</span>
-          </div>
-          <div class="meter-track"><div class="meter-fill" id="sRendimentoFill" style="width:0%"></div></div>
-        </div>
-      </div>
-    </div>
 
     <div class="card">
       <div class="card-head">
@@ -753,6 +711,17 @@
   var firebaseConfigured = firebaseConfig.apiKey !== "SUBSTITUA_AQUI" && !!firebaseConfig.databaseURL;
   var db = null;
   var auth = null;
+
+  // E-mails com permissão de administrador (podem editar lotes já registrados).
+  // Adicione aqui o(s) e-mail(s) de quem deve poder editar; os demais usuários só
+  // conseguem registrar novos lotes e visualizar o histórico.
+  var ADMIN_EMAILS = ["SUBSTITUA_PELO_EMAIL_DO_ADMIN"];
+
+  function isAdmin(){
+    if(!firebaseConfigured || !auth) return true; // sem login configurado, não há como restringir
+    var u = auth.currentUser;
+    return !!(u && u.email && ADMIN_EMAILS.indexOf(u.email) > -1);
+  }
   if(firebaseConfigured){
     try{
       firebase.initializeApp(firebaseConfig);
@@ -901,46 +870,7 @@
   function updateSummary(){
     var v = currentFormValues();
     var liquido = v.lombo + v.barriga;
-    var perdas = v.descarte + v.apara + v.pele;
-    var pesoInicialEsperado = liquido + perdas;
-    var produzido = v.joe + v.niguiri + v.especial + v.enrolados + v.sashimi;
-
     document.getElementById('fLiquidoReadout').textContent = fmtNum(liquido);
-    document.getElementById('sPesoInicial').innerHTML = fmtNum(v.pesoInicial) + '<span class="u">g</span>';
-    document.getElementById('sLiquido').innerHTML = fmtNum(liquido) + '<span class="u">g</span>';
-    document.getElementById('sPerdas').textContent = fmtG(perdas);
-    document.getElementById('sPesoInicialEsperado').textContent = fmtG(pesoInicialEsperado);
-    document.getElementById('sProduzido').textContent = fmtNum(produzido) + ' un';
-
-    var confEl = document.getElementById('sConferencia');
-    if(v.pesoInicial <= 0 && pesoInicialEsperado === 0){
-      confEl.innerHTML = '<span class="badge neutral">sem dados</span>';
-    } else if(v.pesoInicial <= 0){
-      confEl.innerHTML = '<span class="badge neutral">informe o peso inicial</span>';
-    } else {
-      var diff = v.pesoInicial - pesoInicialEsperado;
-      var pctDiff = Math.abs(diff) / v.pesoInicial * 100;
-      if(pctDiff <= 3){
-        confEl.innerHTML = '<span class="badge good">Pesagem conferida</span>';
-      } else if(pctDiff <= 8){
-        confEl.innerHTML = '<span class="badge warning">Diferença de ' + fmtG(Math.abs(diff)) + '</span>';
-      } else {
-        confEl.innerHTML = '<span class="badge critical">Diferença de ' + fmtG(Math.abs(diff)) + '</span>';
-      }
-    }
-
-    var rendEl = document.getElementById('sRendimentoPct');
-    var fill = document.getElementById('sRendimentoFill');
-    if(v.pesoInicial > 0){
-      var rendimento = liquido / v.pesoInicial * 100;
-      rendEl.textContent = fmtPct(rendimento);
-      fill.style.width = Math.min(rendimento,100) + '%';
-      fill.className = 'meter-fill' + (rendimento > 100 ? ' critical' : '');
-    } else {
-      rendEl.textContent = '—';
-      fill.style.width = '0%';
-      fill.className = 'meter-fill';
-    }
   }
 
   weightInputs.forEach(function(inp){ inp.addEventListener('input', updateSummary); });
@@ -949,7 +879,7 @@
     document.getElementById('loteForm').reset();
     fData.value = todayISO();
     state.editingLoteId = null;
-    document.getElementById('formTitle').textContent = 'Registrar lote de salmão';
+    document.getElementById('formTitle').textContent = 'Registro de abertura de lâmina';
     document.getElementById('submitLoteBtn').textContent = 'Registrar lote';
     document.getElementById('cancelEditBtn').hidden = true;
     updateSummary();
@@ -957,31 +887,84 @@
 
   document.getElementById('cancelEditBtn').addEventListener('click', resetForm);
 
+  function loteRendimento(l){
+    return l.pesoInicial > 0 ? (l.liquido / l.pesoInicial * 100) : 0;
+  }
+
+  // Modal exibido logo após registrar/atualizar um lote, com opção de enviar os
+  // dados (incluindo o % de aproveitamento) por WhatsApp para o grupo PCP.
+  function renderEnvioLoteModal(lote, opts){
+    opts = opts || {};
+    var titulo = opts.titulo || 'Lote registrado';
+    var rend = loteRendimento(lote);
+    var itensProduzidos = [
+      { nome: 'Joe', qtd: lote.joe },
+      { nome: 'Niguiri', qtd: lote.niguiri },
+      { nome: 'Especial', qtd: lote.especial },
+      { nome: 'Enrolados', qtd: lote.enrolados },
+      { nome: 'Sashimi', qtd: lote.sashimi }
+    ].filter(function(it){ return it.qtd > 0; });
+
+    var linhas = [
+      '*Abertura de lâmina — Salmão*',
+      'Lote: ' + lote.lote,
+      'Data: ' + fmtDateBR(lote.data),
+      'Peso inicial: ' + fmtNum(lote.pesoInicial) + ' g',
+      'Peso líquido: ' + fmtNum(lote.liquido) + ' g',
+      '% de aproveitamento: ' + fmtPct(rend),
+      'Produzido: ' + fmtNum(lote.produzido) + ' un',
+      '',
+      'Lombo: ' + fmtNum(lote.lombo) + ' g',
+      'Barriga: ' + fmtNum(lote.barriga) + ' g',
+      'Descarte: ' + fmtNum(lote.descarte) + ' g',
+      'Apara: ' + fmtNum(lote.apara) + ' g',
+      'Pele: ' + fmtNum(lote.pele) + ' g',
+      '',
+      'Produzido:'
+    ].concat(
+      itensProduzidos.length
+        ? itensProduzidos.map(function(it){ return it.nome + ': ' + fmtNum(it.qtd) + ' un'; })
+        : ['Nenhum item produzido']
+    );
+    var whatsappUrl = 'https://wa.me/?text=' + encodeURIComponent(linhas.join('\n'));
+
+    var html =
+      '<h3>' + escapeHtml(titulo) + '</h3>' +
+      '<p class="modal-sub">' + escapeHtml(lote.lote) + ' · aproveitamento de ' + fmtPct(rend) + '</p>' +
+      '<div class="modal-close-row" style="justify-content:space-between;flex-wrap:wrap;">' +
+        '<button class="btn btn-outline btn-sm" id="modalCancelBtn">Fechar</button>' +
+        '<a class="btn btn-primary btn-sm" href="' + whatsappUrl + '" target="_blank" rel="noopener">🟢 Enviar ao grupo PCP (WhatsApp)</a>' +
+      '</div>';
+    openModal(html);
+    document.getElementById('modalCancelBtn').addEventListener('click', closeModal);
+  }
+
   document.getElementById('loteForm').addEventListener('submit', function(e){
     e.preventDefault();
     var v = currentFormValues();
     if(!v.lote){ fLote.focus(); return; }
     var liquido = v.lombo + v.barriga;
     var produzido = v.joe + v.niguiri + v.especial + v.enrolados + v.sashimi;
+    var loteResultante;
 
     if(state.editingLoteId){
       var idx = state.lotes.findIndex(function(l){ return l.id === state.editingLoteId; });
       if(idx > -1){
         state.lotes[idx] = Object.assign({id: state.editingLoteId, criadoEm: state.lotes[idx].criadoEm}, v, {liquido: liquido, produzido: produzido});
+        loteResultante = state.lotes[idx];
       }
       toast('Lote atualizado');
     } else {
-      state.lotes.unshift(Object.assign({id: uid(), criadoEm: new Date().toISOString()}, v, {liquido: liquido, produzido: produzido}));
+      var novoLote = Object.assign({id: uid(), criadoEm: new Date().toISOString()}, v, {liquido: liquido, produzido: produzido});
+      state.lotes.unshift(novoLote);
+      loteResultante = novoLote;
       toast('Lote registrado');
     }
     safeSet(LS_LOTES, state.lotes);
     resetForm();
     renderLotes();
+    if(loteResultante) renderEnvioLoteModal(loteResultante);
   });
-
-  function loteRendimento(l){
-    return l.pesoInicial > 0 ? (l.liquido / l.pesoInicial * 100) : 0;
-  }
 
   function renderLotes(){
     var tbody = document.getElementById('lotesTbody');
@@ -990,10 +973,11 @@
       tbody.innerHTML = '<tr class="empty-row"><td colspan="7">Nenhum lote registrado ainda hoje.</td></tr>';
       return;
     }
+    var admin = isAdmin();
     tbody.innerHTML = state.lotes.map(function(l){
       var rend = loteRendimento(l);
       var isConfirm = state.confirmDeleteId === l.id;
-      return '<tr>' +
+      return '<tr data-view-lote="' + l.id + '">' +
         '<td><strong>' + escapeHtml(l.lote) + '</strong></td>' +
         '<td>' + fmtDateBR(l.data) + '</td>' +
         '<td class="num">' + fmtNum(l.pesoInicial) + ' g</td>' +
@@ -1001,7 +985,7 @@
         '<td class="num">' + fmtNum(l.produzido) + ' un</td>' +
         '<td class="num">' + fmtPct(rend) + '</td>' +
         '<td><div class="row-actions">' +
-          '<button class="btn btn-ghost btn-sm" data-edit-lote="' + l.id + '">Editar</button>' +
+          (admin ? '<button class="btn btn-ghost btn-sm" data-edit-lote="' + l.id + '">Editar</button>' : '') +
           '<button class="btn btn-danger btn-sm" data-del-lote="' + l.id + '">' + (isConfirm ? 'Confirmar' : 'Excluir') + '</button>' +
         '</div></td>' +
       '</tr>';
@@ -1041,6 +1025,13 @@
         setTimeout(function(){
           if(state.confirmDeleteId === delId){ state.confirmDeleteId = null; renderLotes(); }
         }, 3000);
+      }
+    } else {
+      var tr = e.target.closest('tr[data-view-lote]');
+      if(tr){
+        var viewId = tr.getAttribute('data-view-lote');
+        var lv = state.lotes.find(function(x){ return x.id === viewId; });
+        if(lv) renderEnvioLoteModal(lv, {titulo: 'Detalhes do lote'});
       }
     }
   });
@@ -1557,7 +1548,7 @@
       }).join('');
 
       var famKey = pedido.id + '__' + fam;
-      var aberta = state.familiaAberta[famKey] !== false;
+      var aberta = state.familiaAberta[famKey] === true;
       // % realizado da categoria = peças enviadas (capadas ao solicitado) / peças solicitadas — sempre por quantidade, não por nº de itens
       var famPct = famSolicitado > 0 ? Math.min(famEnviadoCapped / famSolicitado * 100, 100) : 0;
 
