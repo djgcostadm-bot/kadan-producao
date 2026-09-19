@@ -1363,12 +1363,14 @@
 
   /* ---- modal: ver lançamentos de um item (horário, quantidade, funcionário) ---- */
   function renderHistoryModal(pedidoId, produto){
+    var pedidoRef = state.pedidos.find(function(p){ return p.id === pedidoId; });
+    var bloqueado = !!(pedidoRef && pedidoRef.concluidoEm);
     var itens = enviosDoItem(pedidoId, produto).slice().reverse();
     var listHtml = itens.length ? itens.map(function(e){
       return '<div class="hist-row">' +
         '<div class="meta"><span class="t num">' + fmtTime(e.horario) + ' · ' + fmtNum(e.quantidade) + ' un</span>' +
         '<span class="f">' + (e.funcionario ? escapeHtml(e.funcionario) : 'funcionário não informado') + '</span></div>' +
-        '<button class="btn btn-outline btn-sm" data-undo-hist="' + e.id + '">Desfazer</button>' +
+        (bloqueado ? '' : '<button class="btn btn-outline btn-sm" data-undo-hist="' + e.id + '">Desfazer</button>') +
       '</div>';
     }).join('') : '<p class="modal-sub" style="margin:0;">Nenhum lançamento registrado ainda para este item.</p>';
 
@@ -1510,6 +1512,8 @@
       return 0;
     });
 
+    var bloqueado = !!pedido.concluidoEm; // produção concluída: bloqueia novos lançamentos até reabrir
+
     var acordeao = ordemGrupos.map(function(fam){
       var itensFam = grupos[fam];
       var famSolicitado = 0, famEnviadoCapped = 0;
@@ -1540,10 +1544,11 @@
             '<div class="stat-mini"><span class="k">Diferença</span><span class="v ' + diffClass + '">' + diffLabel + '</span></div>' +
             '<div class="stat-mini"><span class="k">Progresso</span><span class="v ' + pctClass + '">' + fmtPct(pct) + '</span></div>' +
           '</div>' +
+          (bloqueado ? '' :
           '<div class="item-entry">' +
             '<input type="number" min="0" step="1" inputmode="numeric" placeholder="Qtd." class="qtyInput" data-produto="' + escapeHtml(it.produto) + '">' +
             '<button class="btn btn-primary btn-xs sendBtn" data-produto="' + escapeHtml(it.produto) + '">Enviar</button>' +
-          '</div>' +
+          '</div>') +
         '</div>';
       }).join('');
 
@@ -1566,6 +1571,10 @@
       ? '<span class="badge good">concluído às ' + fmtTime(pedido.concluidoEm) + '</span>'
       : '';
 
+    var acaoConclusaoBtn = bloqueado
+      ? '<button class="btn btn-outline btn-sm" id="reabrirBtn">Reabrir produção</button>'
+      : '<button class="btn btn-ghost btn-sm" id="concluirBtn">Concluir produção</button>';
+
     var indicadoresHtml = renderResumoIndicadoresHtml(calcPedidoResumo(pedido));
 
     board.innerHTML =
@@ -1574,7 +1583,7 @@
           '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">' +
             '<span class="hint">importado às ' + fmtTime(pedido.criadoEm) + '</span>' +
             concluidoBadge +
-            '<button class="btn btn-ghost btn-sm" id="concluirBtn">Concluir produção</button>' +
+            acaoConclusaoBtn +
           '</div>' +
         '</div>' +
         indicadoresHtml +
@@ -1603,6 +1612,16 @@
     var concluirBtn = document.getElementById('concluirBtn');
     if(concluirBtn){
       concluirBtn.addEventListener('click', function(){ renderRelatorioModal(pedido); });
+    }
+    var reabrirBtn = document.getElementById('reabrirBtn');
+    if(reabrirBtn){
+      reabrirBtn.addEventListener('click', function(){
+        pedido.concluidoEm = null;
+        safeSet(LS_PEDIDOS, state.pedidos);
+        toast('Produção reaberta para edição');
+        renderPedidoBoard();
+        renderPedidoSelect();
+      });
     }
 
     board.querySelectorAll('.sendBtn').forEach(function(btn){
