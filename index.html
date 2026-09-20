@@ -421,6 +421,31 @@
 
   .log-table td.qty{font-family:var(--font-mono);font-weight:600;}
 
+  /* ---- Contagem (sobra/descarte, agrupada por categoria em acordeão) ---- */
+  .contagem-resumo{
+    display:flex;flex-wrap:wrap;gap:8px 18px;padding:12px 14px;background:var(--surface-2);
+    border-radius:10px;margin-bottom:14px;font-size:.8rem;color:var(--ink-muted);
+  }
+  .contagem-resumo strong{font-family:var(--font-mono);color:var(--ink);}
+  .contagem-item-row{padding:10px 0;border-top:1px solid var(--border);}
+  .contagem-item-row:first-child{border-top:none;}
+  .contagem-item-top{display:flex;align-items:baseline;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:8px;}
+  .contagem-item-top strong{font-family:var(--font-display);font-size:.88rem;}
+  .contagem-item-top .hint{font-size:.74rem;}
+  .contagem-item-inputs{display:flex;gap:10px;flex-wrap:wrap;}
+  .contagem-field{display:flex;flex-direction:column;gap:4px;flex:1;min-width:110px;}
+  .contagem-field span{font-size:.68rem;color:var(--ink-muted);font-weight:600;text-transform:uppercase;letter-spacing:.02em;}
+  .contagem-input{
+    width:100%;min-height:40px;padding:8px 10px;font-family:var(--font-mono);font-size:.92rem;
+    border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--ink);
+  }
+  .contagem-input:focus-visible{outline:2px solid var(--accent);outline-offset:1px;}
+  .contagem-hist-cat{margin-bottom:12px;}
+  .contagem-hist-cat:last-child{margin-bottom:0;}
+  .contagem-hist-item{padding:6px 0;border-top:1px solid var(--border);}
+  .contagem-hist-item:first-child{border-top:none;}
+  .contagem-hist-item strong{font-family:var(--font-display);font-size:.84rem;display:block;margin-bottom:4px;}
+
   .empty-state{
     display:flex;flex-direction:column;align-items:center;gap:8px;padding:34px 20px;text-align:center;color:var(--ink-muted);
   }
@@ -495,6 +520,9 @@
     </button>
     <button class="tab-btn" id="tabBtn3" role="tab" aria-selected="false" aria-controls="view3" data-tab="3">
       <span class="tab-label-full">Monitor</span><span class="tab-label-short">Monitor</span>
+    </button>
+    <button class="tab-btn" id="tabBtn4" role="tab" aria-selected="false" aria-controls="view4" data-tab="4">
+      <span class="tab-label-full">Contagem</span><span class="tab-label-short">Contagem</span>
     </button>
   </nav>
 
@@ -683,6 +711,31 @@
       <div id="acompFuncionarios"></div>
     </div>
   </section>
+
+  <!-- ===================== CONTAGEM ===================== -->
+  <section class="view" id="view4" role="tabpanel" aria-labelledby="tabBtn4" hidden>
+    <div class="card">
+      <div class="card-head">
+        <h2>Contagem de sobra e descarte</h2>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn btn-outline btn-sm" id="configurarMultiplicadorBtn">⚙️ Multiplicador</button>
+          <button class="btn btn-ghost btn-sm" id="refreshContagemBtn">Atualizar</button>
+        </div>
+      </div>
+      <div id="contagemBoard"></div>
+      <div class="form-actions" style="margin-top:16px;">
+        <button type="button" class="btn btn-primary" id="finalizarContagemBtn">Finalizar contagem e enviar por WhatsApp</button>
+        <button type="button" class="btn btn-outline" id="limparContagemBtn">Limpar campos</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <h2>Histórico de contagens</h2>
+      </div>
+      <div id="contagemHistorico"></div>
+    </div>
+  </section>
 </div>
 
 <div id="toast"><span class="dot"></span><span id="toastMsg">Salvo</span></div>
@@ -746,6 +799,9 @@
   var LS_PEDIDOS = 'pedidos';
   var LS_ENVIOS = 'envios';
   var LS_FUNCIONARIOS = 'funcionarios';
+  var LS_CONTAGENS = 'contagens';
+  var LS_CONTAGEM_RASCUNHO = 'kadan_contagem_rascunho_v1';
+  var LS_CONTAGEM_MULTIPLICADORES = 'contagem_multiplicadores';
 
   function safeSet(key, value){
     if(!firebaseConfigured){
@@ -758,11 +814,46 @@
     });
   }
 
+  // Itens cuja quantidade solicitada exibida na Contagem é a quantidade do pedido
+  // multiplicada por um fator configurável (ex.: um "hossomaki" do pedido vira várias
+  // peças na contagem). O multiplicador de cada item é ajustado no botão "Multiplicador".
+  var ITENS_MULTIPLICAVEIS = ['Hossomaki', 'Uramaki', 'Hot roll', 'Hot Romeu e Julieta', 'Hot Filadélfia', 'Hot banana'];
+  function normalizarNomeProduto(s){
+    return String(s == null ? '' : s)
+      .normalize('NFD').replace(/[̀-ͯ]/g, '')
+      .trim().toLowerCase().replace(/\s+/g, ' ');
+  }
+  function defaultContagemMultiplicadores(){
+    var obj = {};
+    ITENS_MULTIPLICAVEIS.forEach(function(nome){ obj[nome] = 1; });
+    return obj;
+  }
+  // Os nomes configurados são só o "primeiro nome" do item — o nome completo no
+  // pedido normalmente tem um complemento (ex.: "Hossomaki Salmão", "Hot roll
+  // Filadélfia"). Por isso o produto entra no multiplicador quando o nome dele
+  // COMEÇA com um dos nomes configurados (exato ou seguido de espaço/pontuação),
+  // não só quando é idêntico.
+  function getMultiplicadorContagem(produto){
+    var nomeProduto = normalizarNomeProduto(produto);
+    for(var i=0;i<ITENS_MULTIPLICAVEIS.length;i++){
+      var base = normalizarNomeProduto(ITENS_MULTIPLICAVEIS[i]);
+      if(nomeProduto === base || (nomeProduto.indexOf(base) === 0 && !/[a-z0-9]/.test(nomeProduto.charAt(base.length)))){
+        var v = state.contagemMultiplicadores[ITENS_MULTIPLICAVEIS[i]];
+        return (v == null || isNaN(v) || v <= 0) ? 1 : v;
+      }
+    }
+    return 1;
+  }
+
   var state = {
     lotes: [],
     pedidos: [],
     envios: [],
     funcionarios: [],
+    contagens: [],
+    contagemValores: carregarRascunhoContagem(),
+    contagemCategoriaAberta: {},
+    contagemMultiplicadores: defaultContagemMultiplicadores(),
     editingLoteId: null,
     pedidoAtualId: null,
     confirmDeleteId: null,
@@ -812,27 +903,34 @@
   var tabBtn1 = document.getElementById('tabBtn1');
   var tabBtn2 = document.getElementById('tabBtn2');
   var tabBtn3 = document.getElementById('tabBtn3');
+  var tabBtn4 = document.getElementById('tabBtn4');
   var view1 = document.getElementById('view1');
   var view2 = document.getElementById('view2');
   var view3 = document.getElementById('view3');
+  var view4 = document.getElementById('view4');
   var currentTab = '1';
   function setTab(which){
     currentTab = which;
     view1.hidden = which !== '1';
     view2.hidden = which !== '2';
     view3.hidden = which !== '3';
+    view4.hidden = which !== '4';
     tabBtn1.classList.toggle('active', which === '1');
     tabBtn2.classList.toggle('active', which === '2');
     tabBtn3.classList.toggle('active', which === '3');
+    tabBtn4.classList.toggle('active', which === '4');
     tabBtn1.setAttribute('aria-selected', which === '1');
     tabBtn2.setAttribute('aria-selected', which === '2');
     tabBtn3.setAttribute('aria-selected', which === '3');
+    tabBtn4.setAttribute('aria-selected', which === '4');
     if(which === '3') renderAcompanhamento();
+    if(which === '4'){ renderContagem(); renderContagemHistorico(); }
     try{ localStorage.setItem('fluxosalmao_tab', which); }catch(e){}
   }
   tabBtn1.addEventListener('click', function(){ setTab('1'); });
   tabBtn2.addEventListener('click', function(){ setTab('2'); });
   tabBtn3.addEventListener('click', function(){ setTab('3'); });
+  tabBtn4.addEventListener('click', function(){ setTab('4'); });
 
   /* ================= MÓDULO 1 ================= */
   var fLote = document.getElementById('fLote');
@@ -1860,6 +1958,332 @@
 
   document.getElementById('refreshAcompBtn').addEventListener('click', renderAcompanhamento);
 
+  /* ---------------- Contagem (sobra/descarte dos itens do dia) ---------------- */
+
+  // Rascunho local (não sincronizado entre tablets) da contagem em andamento, para
+  // não perder o que já foi digitado neste aparelho se a página recarregar antes
+  // de finalizar. A contagem finalizada em si é salva no Firebase (como as demais).
+  function carregarRascunhoContagem(){
+    try{
+      var raw = localStorage.getItem(LS_CONTAGEM_RASCUNHO);
+      if(!raw) return {};
+      var parsed = JSON.parse(raw);
+      if(!parsed || parsed.data !== todayISO()) return {};
+      return parsed.valores || {};
+    }catch(e){ return {}; }
+  }
+  function persistirRascunhoContagem(){
+    try{ localStorage.setItem(LS_CONTAGEM_RASCUNHO, JSON.stringify({ data: todayISO(), valores: state.contagemValores })); }catch(e){ /* ignore */ }
+  }
+
+  // Consolida, por produto, tudo que foi solicitado nos pedidos importados hoje
+  // (somando entre pedidos diferentes) — é essa lista que vira a contagem física.
+  function getItensContagemHoje(){
+    var hoje = todayISO();
+    var pedidosHoje = state.pedidos.filter(function(p){ return dataLocalISO(new Date(p.criadoEm)) === hoje; });
+    var porProduto = {}, ordem = [];
+    pedidosHoje.forEach(function(p){
+      p.itens.forEach(function(it){
+        var fam = it.familia || 'Outros';
+        var mult = getMultiplicadorContagem(it.produto);
+        if(!porProduto[it.produto]){ porProduto[it.produto] = { produto: it.produto, familia: fam, solicitado: 0, enviado: 0 }; ordem.push(it.produto); }
+        porProduto[it.produto].solicitado += it.solicitado * mult;
+        porProduto[it.produto].enviado += enviadoTotal(p.id, it.produto) * mult;
+      });
+    });
+    var itens = ordem.map(function(k){ return porProduto[k]; });
+    itens.sort(function(a,b){
+      if(a.familia !== b.familia){
+        if(a.familia === 'Outros') return 1;
+        if(b.familia === 'Outros') return -1;
+        return a.familia.localeCompare(b.familia, 'pt-BR');
+      }
+      return a.produto.localeCompare(b.produto, 'pt-BR');
+    });
+    return itens;
+  }
+
+  function contagemValor(produto, campo){
+    var v = state.contagemValores[produto];
+    return (v && v[campo] != null) ? v[campo] : '';
+  }
+  function setContagemValor(produto, campo, valor){
+    if(!state.contagemValores[produto]) state.contagemValores[produto] = {};
+    state.contagemValores[produto][campo] = valor;
+    persistirRascunhoContagem();
+  }
+  function calcTotaisContagem(itens){
+    var totalSolicitado = 0, totalEnviado = 0, totalSobra = 0, totalDescarte = 0;
+    itens.forEach(function(it){
+      totalSolicitado += it.solicitado;
+      totalEnviado += it.enviado || 0;
+      totalSobra += n(contagemValor(it.produto, 'sobra'));
+      totalDescarte += n(contagemValor(it.produto, 'descarte'));
+    });
+    return { totalSolicitado: totalSolicitado, totalEnviado: totalEnviado, totalSobra: totalSobra, totalDescarte: totalDescarte };
+  }
+
+  // Meta de uma categoria (nº de itens, sobra e descarte já digitados) — recalculada
+  // ao vivo a cada tecla, para o cabeçalho do acordeão refletir o progresso mesmo
+  // fechado, sem precisar re-renderizar a lista inteira (o que perderia o foco do input).
+  function contagemFamiliaMetaHtml(itensFam){
+    var sobra = 0, descarte = 0;
+    itensFam.forEach(function(it){
+      sobra += n(contagemValor(it.produto, 'sobra'));
+      descarte += n(contagemValor(it.produto, 'descarte'));
+    });
+    return itensFam.length + ' iten' + (itensFam.length===1?'':'s') + ' · sobra ' + fmtNum(sobra) + ' · descarte ' + fmtNum(descarte);
+  }
+
+  // Lista os itens solicitados hoje agrupados por categoria, em acordeão (uma
+  // categoria por vez aberta na tela), para caber sem rolagem horizontal no celular.
+  function renderContagem(){
+    var el = document.getElementById('contagemBoard');
+    var itens = getItensContagemHoje();
+    if(!itens.length){
+      el.innerHTML = '<div class="empty-state"><div class="icon">🧮</div><p>Nenhum pedido importado hoje ainda. Importe um pedido na aba "Pedido de Produção" para começar a contagem.</p></div>';
+      return;
+    }
+    var grupos = {}, ordemGrupos = [];
+    itens.forEach(function(it){
+      if(!grupos[it.familia]){ grupos[it.familia] = []; ordemGrupos.push(it.familia); }
+      grupos[it.familia].push(it);
+    });
+
+    var acordeaoHtml = ordemGrupos.map(function(fam){
+      var itensFam = grupos[fam];
+      var itemRows = itensFam.map(function(it){
+        var produtoAttr = escapeHtml(it.produto);
+        var sobra = contagemValor(it.produto, 'sobra');
+        var descarte = contagemValor(it.produto, 'descarte');
+        return '<div class="contagem-item-row">' +
+          '<div class="contagem-item-top"><strong>' + escapeHtml(it.produto) + '</strong><span class="hint">solicitado ' + fmtNum(it.solicitado) + ' un · enviado ' + fmtNum(it.enviado) + ' un</span></div>' +
+          '<div class="contagem-item-inputs">' +
+            '<label class="contagem-field"><span>Sobra</span><input type="number" min="0" step="1" inputmode="numeric" class="contagem-input" data-produto="' + produtoAttr + '" data-campo="sobra" value="' + sobra + '" placeholder="0"></label>' +
+            '<label class="contagem-field"><span>Descarte</span><input type="number" min="0" step="1" inputmode="numeric" class="contagem-input" data-produto="' + produtoAttr + '" data-campo="descarte" value="' + descarte + '" placeholder="0"></label>' +
+          '</div>' +
+        '</div>';
+      }).join('');
+
+      var aberta = state.contagemCategoriaAberta[fam] === true;
+      return '<div class="familia-acc">' +
+        '<button class="familia-toggle" type="button" data-contagem-familia-key="' + escapeHtml(fam) + '" aria-expanded="' + aberta + '">' +
+          '<span class="chevron">▾</span>' +
+          '<span>' + escapeHtml(fam) + '</span>' +
+          '<span class="familia-meta" data-contagem-familia-meta="' + escapeHtml(fam) + '">' + contagemFamiliaMetaHtml(itensFam) + '</span>' +
+        '</button>' +
+        '<div class="familia-items"' + (aberta ? '' : ' hidden') + ' data-contagem-familia-items="' + escapeHtml(fam) + '">' + itemRows + '</div>' +
+      '</div>';
+    }).join('');
+
+    var totais = calcTotaisContagem(itens);
+    var resumoHtml = '<div class="contagem-resumo">' +
+      '<span>Solicitado: <strong>' + fmtNum(totais.totalSolicitado) + ' un</strong></span>' +
+      '<span>Enviado: <strong>' + fmtNum(totais.totalEnviado) + ' un</strong></span>' +
+      '<span>Sobra: <strong id="contagemTotalSobra">' + fmtNum(totais.totalSobra) + ' un</strong></span>' +
+      '<span>Descarte: <strong id="contagemTotalDescarte">' + fmtNum(totais.totalDescarte) + ' un</strong></span>' +
+    '</div>';
+
+    el.innerHTML = resumoHtml + acordeaoHtml;
+
+    el.querySelectorAll('.contagem-input').forEach(function(inp){
+      inp.addEventListener('input', function(){
+        setContagemValor(inp.getAttribute('data-produto'), inp.getAttribute('data-campo'), inp.value);
+        var t = calcTotaisContagem(getItensContagemHoje());
+        document.getElementById('contagemTotalSobra').textContent = fmtNum(t.totalSobra) + ' un';
+        document.getElementById('contagemTotalDescarte').textContent = fmtNum(t.totalDescarte) + ' un';
+        var famKey = inp.closest('[data-contagem-familia-items]').getAttribute('data-contagem-familia-items');
+        var meta = el.querySelector('[data-contagem-familia-meta="' + cssEscape(famKey) + '"]');
+        if(meta) meta.textContent = contagemFamiliaMetaHtml(grupos[famKey]);
+      });
+    });
+
+    el.querySelectorAll('[data-contagem-familia-key]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var key = btn.getAttribute('data-contagem-familia-key');
+        var aberta = btn.getAttribute('aria-expanded') === 'true';
+        var novaAberta = !aberta;
+        btn.setAttribute('aria-expanded', novaAberta);
+        state.contagemCategoriaAberta[key] = novaAberta;
+        var itemsEl = el.querySelector('[data-contagem-familia-items="' + cssEscape(key) + '"]');
+        if(itemsEl) itemsEl.hidden = !novaAberta;
+      });
+    });
+  }
+
+  // A mensagem do WhatsApp só lista os itens que tiveram sobra ou descarte —
+  // itens zerados nos dois campos são omitidos para não poluir o envio.
+  function buildContagemMensagem(record){
+    var itensRelevantes = record.itens.filter(function(it){ return it.sobra > 0 || it.descarte > 0; });
+    var linhas = [
+      '*Contagem de produção — ' + fmtDateBR(record.data) + '*',
+      'Total solicitado: ' + fmtNum(record.totalSolicitado) + ' un',
+      'Total enviado: ' + fmtNum(record.totalEnviado || 0) + ' un',
+      'Total sobra: ' + fmtNum(record.totalSobra) + ' un',
+      'Total descarte: ' + fmtNum(record.totalDescarte) + ' un',
+      '',
+      'Itens com sobra ou descarte:'
+    ];
+    if(itensRelevantes.length){
+      linhas = linhas.concat(itensRelevantes.map(function(it){
+        return '• ' + it.produto + ': solicitado ' + fmtNum(it.solicitado) + ' | enviado ' + fmtNum(it.enviado || 0) + ' | sobra ' + fmtNum(it.sobra) + ' | descarte ' + fmtNum(it.descarte);
+      }));
+    } else {
+      linhas.push('Nenhum item com sobra ou descarte.');
+    }
+    return linhas.join('\n');
+  }
+
+  function renderContagemFinalizadaModal(record){
+    var whatsappUrl = 'https://wa.me/?text=' + encodeURIComponent(buildContagemMensagem(record));
+    var html =
+      '<h3>Contagem finalizada</h3>' +
+      '<p class="modal-sub">' + fmtDateBR(record.data) + ' · enviado ' + fmtNum(record.totalEnviado || 0) + ' un · sobra ' + fmtNum(record.totalSobra) + ' un · descarte ' + fmtNum(record.totalDescarte) + ' un</p>' +
+      '<div class="modal-close-row" style="justify-content:space-between;flex-wrap:wrap;">' +
+        '<button class="btn btn-outline btn-sm" id="modalCancelBtn">Fechar</button>' +
+        '<a class="btn btn-primary btn-sm" href="' + whatsappUrl + '" target="_blank" rel="noopener">🟢 Enviar por WhatsApp</a>' +
+      '</div>';
+    openModal(html);
+    document.getElementById('modalCancelBtn').addEventListener('click', closeModal);
+  }
+
+  // Finaliza a contagem do dia: consolida os valores digitados, salva no histórico
+  // (substituindo a contagem de hoje se já existir uma) e abre o link do WhatsApp.
+  function finalizarContagem(){
+    var itens = getItensContagemHoje();
+    if(!itens.length){
+      toast('Nenhum item para contar hoje');
+      return;
+    }
+    var hoje = todayISO();
+    var itensFinal = itens.map(function(it){
+      return {
+        produto: it.produto,
+        familia: it.familia,
+        solicitado: it.solicitado,
+        enviado: it.enviado,
+        sobra: n(contagemValor(it.produto, 'sobra')),
+        descarte: n(contagemValor(it.produto, 'descarte'))
+      };
+    });
+    var totais = calcTotaisContagem(itens);
+    var idx = state.contagens.findIndex(function(c){ return c.data === hoje; });
+    var record = {
+      id: idx > -1 ? state.contagens[idx].id : uid(),
+      data: hoje,
+      finalizadoEm: new Date().toISOString(),
+      itens: itensFinal,
+      totalSolicitado: totais.totalSolicitado,
+      totalEnviado: totais.totalEnviado,
+      totalSobra: totais.totalSobra,
+      totalDescarte: totais.totalDescarte
+    };
+    if(idx > -1){ state.contagens[idx] = record; } else { state.contagens.unshift(record); }
+    safeSet(LS_CONTAGENS, state.contagens);
+    renderContagemHistorico();
+    renderContagemFinalizadaModal(record);
+    toast('Contagem finalizada');
+  }
+
+  function limparContagem(){
+    state.contagemValores = {};
+    try{ localStorage.removeItem(LS_CONTAGEM_RASCUNHO); }catch(e){ /* ignore */ }
+    renderContagem();
+    toast('Campos de contagem limpos');
+  }
+
+  function renderContagemHistorico(){
+    var el = document.getElementById('contagemHistorico');
+    if(!state.contagens.length){
+      el.innerHTML = '<div class="empty-state"><div class="icon">📋</div><p>Nenhuma contagem finalizada ainda.</p></div>';
+      return;
+    }
+    var registros = state.contagens.slice().sort(function(a,b){ return new Date(b.finalizadoEm) - new Date(a.finalizadoEm); });
+    var html = registros.map(function(r){
+      // agrupa os itens do registro por categoria, na ordem em que aparecem, para exibir
+      // em blocos compactos (sem tabela larga) que cabem na tela do celular.
+      var grupos = {}, ordemGrupos = [];
+      r.itens.forEach(function(it){
+        var fam = it.familia || 'Outros';
+        if(!grupos[fam]){ grupos[fam] = []; ordemGrupos.push(fam); }
+        grupos[fam].push(it);
+      });
+      var gruposHtml = ordemGrupos.map(function(fam){
+        var itensHtml = grupos[fam].map(function(it){
+          return '<div class="contagem-hist-item">' +
+            '<strong>' + escapeHtml(it.produto) + '</strong>' +
+            '<div class="item-stats">' +
+              '<div class="stat-mini"><span class="k">Solic.</span><span class="v">' + fmtNum(it.solicitado) + '</span></div>' +
+              '<div class="stat-mini"><span class="k">Enviado</span><span class="v">' + fmtNum(it.enviado || 0) + '</span></div>' +
+              '<div class="stat-mini"><span class="k">Sobra</span><span class="v">' + fmtNum(it.sobra) + '</span></div>' +
+              '<div class="stat-mini"><span class="k">Descarte</span><span class="v">' + fmtNum(it.descarte) + '</span></div>' +
+            '</div>' +
+          '</div>';
+        }).join('');
+        return '<div class="contagem-hist-cat"><div class="cat-progress-title">' + escapeHtml(fam) + '</div>' + itensHtml + '</div>';
+      }).join('');
+      return '<div class="acomp-pedido-card">' +
+        '<button class="acomp-pedido-toggle" type="button" data-contagem-key="' + escapeHtml(r.id) + '" aria-expanded="false">' +
+          '<span class="chevron">▾</span>' +
+          '<strong>' + fmtDateBR(r.data) + '</strong>' +
+          '<span class="badge neutral">solicitado ' + fmtNum(r.totalSolicitado) + '</span>' +
+          '<span class="badge good">enviado ' + fmtNum(r.totalEnviado || 0) + '</span>' +
+          '<span class="badge warning">sobra ' + fmtNum(r.totalSobra) + '</span>' +
+          '<span class="badge critical">descarte ' + fmtNum(r.totalDescarte) + '</span>' +
+        '</button>' +
+        '<div class="acomp-pedido-body" hidden data-contagem-body="' + escapeHtml(r.id) + '">' + gruposHtml + '</div>' +
+      '</div>';
+    }).join('');
+    el.innerHTML = html;
+    el.querySelectorAll('[data-contagem-key]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var key = btn.getAttribute('data-contagem-key');
+        var abertoAtual = btn.getAttribute('aria-expanded') === 'true';
+        var novo = !abertoAtual;
+        btn.setAttribute('aria-expanded', novo);
+        var body = el.querySelector('[data-contagem-body="' + cssEscape(key) + '"]');
+        if(body) body.hidden = !novo;
+      });
+    });
+  }
+
+  // Modal para configurar, item a item, o multiplicador aplicado à quantidade
+  // solicitada desses itens (ex.: peças por unidade do pedido) dentro da Contagem.
+  function renderMultiplicadorModal(){
+    var html = '<h3>Configurar multiplicador</h3>' +
+      '<p class="modal-sub">A quantidade solicitada é exibida na Contagem já multiplicada pelo valor abaixo — vale para qualquer produto do pedido cujo nome COMECE com um desses (ex.: "Hossomaki Salmão" também entra em "Hossomaki").</p>' +
+      ITENS_MULTIPLICAVEIS.map(function(nome){
+        var v = (state.contagemMultiplicadores[nome] != null) ? state.contagemMultiplicadores[nome] : 1;
+        return '<label class="field" style="margin-bottom:10px;">' +
+          '<span>' + escapeHtml(nome) + '</span>' +
+          '<input type="number" min="0" step="0.5" inputmode="decimal" class="mult-input" data-item="' + escapeHtml(nome) + '" value="' + v + '">' +
+        '</label>';
+      }).join('') +
+      '<div class="modal-close-row" style="justify-content:space-between;flex-wrap:wrap;">' +
+        '<button class="btn btn-outline btn-sm" id="modalCancelBtn">Cancelar</button>' +
+        '<button class="btn btn-primary btn-sm" id="salvarMultiplicadorBtn">Salvar</button>' +
+      '</div>';
+    openModal(html);
+    document.getElementById('modalCancelBtn').addEventListener('click', closeModal);
+    document.getElementById('salvarMultiplicadorBtn').addEventListener('click', function(){
+      var novo = {};
+      document.querySelectorAll('.mult-input').forEach(function(inp){
+        var val = parseFloat(inp.value);
+        novo[inp.getAttribute('data-item')] = (isNaN(val) || val <= 0) ? 1 : val;
+      });
+      state.contagemMultiplicadores = novo;
+      safeSet(LS_CONTAGEM_MULTIPLICADORES, novo);
+      closeModal();
+      renderContagem();
+      toast('Multiplicadores salvos');
+    });
+  }
+
+  document.getElementById('finalizarContagemBtn').addEventListener('click', finalizarContagem);
+  document.getElementById('limparContagemBtn').addEventListener('click', limparContagem);
+  document.getElementById('refreshContagemBtn').addEventListener('click', renderContagem);
+  document.getElementById('configurarMultiplicadorBtn').addEventListener('click', renderMultiplicadorModal);
+
   /* ---------------- init ---------------- */
   function initDatePill(){
     var d = new Date();
@@ -1874,6 +2298,7 @@
     renderPedidoBoard();
     renderLog();
     if(currentTab === '3') renderAcompanhamento();
+    if(currentTab === '4') renderContagem();
   }
 
   initDatePill();
@@ -1882,7 +2307,7 @@
   function restaurarAba(){
     try{
       var savedTab = localStorage.getItem('fluxosalmao_tab');
-      if(savedTab === '2' || savedTab === '3') setTab(savedTab);
+      if(savedTab === '2' || savedTab === '3' || savedTab === '4') setTab(savedTab);
     }catch(e){}
   }
 
@@ -1918,6 +2343,16 @@
     db.ref(LS_FUNCIONARIOS).on('value', function(snap){
       state.funcionarios = snap.val() || [];
     }, function(err){ console.error('Erro ao ler funcionários:', err); toast('Erro ao ler dados do Firebase'); });
+
+    db.ref(LS_CONTAGENS).on('value', function(snap){
+      state.contagens = snap.val() || [];
+      if(currentTab === '4') renderContagemHistorico();
+    }, function(err){ console.error('Erro ao ler contagens:', err); toast('Erro ao ler dados do Firebase'); });
+
+    db.ref(LS_CONTAGEM_MULTIPLICADORES).on('value', function(snap){
+      state.contagemMultiplicadores = snap.val() || defaultContagemMultiplicadores();
+      if(currentTab === '4') renderContagem();
+    }, function(err){ console.error('Erro ao ler multiplicadores da contagem:', err); toast('Erro ao ler dados do Firebase'); });
   }
 
   /* ---------------- login / autenticação ---------------- */
@@ -1937,7 +2372,7 @@
   function renderResetModal(){
     var html =
       '<h3>Resetar dados</h3>' +
-      '<p class="modal-sub">Isso apaga todos os lotes, pedidos, envios e funcionários cadastrados. Essa ação não pode ser desfeita. Digite o PIN para confirmar.</p>' +
+      '<p class="modal-sub">Isso apaga todos os lotes, pedidos, envios, funcionários e contagens cadastrados. Essa ação não pode ser desfeita. Digite o PIN para confirmar.</p>' +
       '<label class="field" style="margin-bottom:10px;">' +
         '<span>PIN</span>' +
         '<input type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" id="resetPinInput" placeholder="••••" autocomplete="off">' +
@@ -1967,21 +2402,27 @@
   }
 
   function executarReset(){
+    state.contagemValores = {};
+    state.contagemCategoriaAberta = {};
+    try{ localStorage.removeItem(LS_CONTAGEM_RASCUNHO); }catch(e){ /* ignore */ }
     if(!firebaseConfigured){
       state.lotes = [];
       state.pedidos = [];
       state.envios = [];
       state.funcionarios = [];
+      state.contagens = [];
       state.pedidoAtualId = null;
       state.confirmDeleteId = null;
       state.familiaAberta = {};
       resetForm();
       renderAll();
+      renderContagemHistorico();
     } else {
       safeSet(LS_LOTES, []);
       safeSet(LS_PEDIDOS, []);
       safeSet(LS_ENVIOS, []);
       safeSet(LS_FUNCIONARIOS, []);
+      safeSet(LS_CONTAGENS, []);
       resetForm();
     }
     toast('Todos os dados foram resetados');
